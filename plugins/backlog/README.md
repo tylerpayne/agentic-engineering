@@ -178,16 +178,26 @@ skills/backlog-board/backlog      # -> ../../bin/backlog, so ${CLAUDE_SKILL_DIR}
 Both entrypoints resolve `lib/` through `os.path.realpath(__file__)`, so they
 keep working when invoked through the installer's symlinks.
 
-## Known rough edge
+## Known rough edges
 
-The confirmation renders under a prefix Claude Code hardcodes:
+The confirmation renders under a prefix Claude Code hardcodes, which cannot be
+suppressed from the plugin side:
 
 ```
 UserPromptExpansion operation blocked by hook:
 #3 filed - upgrade to node 22
 ```
 
-It cannot be suppressed from the plugin side. If it grates, set
-`BLOCK_STYLE = "stop"` in `hooks/backlog_hook.py` for the one-line
-`Operation stopped by hook: ...` variant — which reads better but adds one
-`isMeta` entry to the transcript.
+The hook also sets `suppressOriginalPrompt: true`, which normally stops Claude
+Code from echoing `Original prompt: /backlog:add ...` underneath. That flag is
+read from `hookSpecificOutput` and honoured identically in 2.1.238 and 2.1.239,
+but it has been observed to be dropped in a long-running interactive session. If
+you see the echo, restart the session; it does not reproduce in a fresh one.
+
+**Do not switch `BLOCK_STYLE` to `"stop"`.** The `{"continue": false}` variant
+avoids the prefix and never echoes the prompt, but it pushes an `isMeta` message
+into the transcript that **is sent to the model** — a note filed that way is
+recited back on the next turn, which defeats the entire point of the plugin.
+Measured, not assumed: with `"stop"`, a following turn repeated a nonsense
+phrase from a filed note; with `"block"` the same test returns "NONE". The
+constant stays for experiments, but `"block"` is the only correct setting.
