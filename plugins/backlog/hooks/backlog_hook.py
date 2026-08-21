@@ -18,6 +18,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 
 import backlog_db as db  # noqa: E402
+import sessions  # noqa: E402
 
 # "block" -> {"decision": "block", ...}: UI-only system message, nothing in the
 #   transcript. Rendered under a hardcoded "operation blocked by hook:" prefix.
@@ -55,7 +56,7 @@ def handle(args_text: str, project: str, session_id: str) -> str:
 
     if not text or _LIST.match(text):
         rows = db.list_items(conn, list(db.OPEN_STATUSES))
-        board = db.render_board(rows)
+        board = db.render_board(rows, me=session_id or sessions.local_holder_id())
         if not rows:
             closed = db.render_counts(conn)
             if closed != "empty":
@@ -72,6 +73,8 @@ def handle(args_text: str, project: str, session_id: str) -> str:
                 return f"No item #{raw_id}."
             db.remove(conn, raw_id)
             return f"#{raw_id} deleted - {row['content']}"
+        if verb == "doing":
+            return _start(conn, raw_id, session_id)
         if not db.set_status(conn, raw_id, verb):
             return f"No item #{raw_id}."
         row = db.get(conn, raw_id)
@@ -79,6 +82,42 @@ def handle(args_text: str, project: str, session_id: str) -> str:
 
     item_id = db.add(conn, text, session_id=session_id, source="slash")
     return f"#{item_id} filed - {text}\n\n{db.render_counts(conn)}"
+
+
+def _start(conn, item_id: int, session_id: str) -> str:
+    """`/backlog doing N` -- take the claim as the session that typed it.
+
+    A dead holder is reclaimed silently; a live one is refused, because two
+    sessions working the same item is the thing this whole column exists to
+    prevent.
+    """
+    row = db.get(conn, item_id)
+    if row is None:
+        return f"No item #{item_id}."
+
+    me = session_id or sessions.local_holder_id()
+    record = sessions.find_by_session_id(me) if session_id else None
+    my_name = (record or {}).get("name")
+
+    info = db.claim_info(row, me)
+    if info["state"] == "live":
+        who = info["name"] or info["session"]
+        return (
+            f"#{item_id} is already held by {who}"
+            f" ({info['session_status'] or 'unknown'}, held {info['held_for']}).\n"
+            f"  {row['content']}\n"
+            f"Ask them before starting, or run: backlog doing {item_id} --steal"
+        )
+
+    took = info["session"] if info["state"] == "stale" else None
+    ok, row = db.claim(conn, item_id, me, my_name, steal_from=took)
+    if not ok:
+        fresh = db.claim_info(db.get(conn, item_id), me)
+        return f"#{item_id} was just claimed by {fresh['name'] or fresh['session']}."
+    note = ""
+    if took:
+        note = f" (took over from dead session {info['name'] or took}, held {info['held_for']})"
+    return f"#{item_id} -> doing{note} - {row['content']}\n\n{db.render_counts(conn)}"
 
 
 def emit(message: str) -> None:

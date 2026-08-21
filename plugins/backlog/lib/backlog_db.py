@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 STATUSES = ("todo", "doing", "done", "wontfix")
 OPEN_STATUSES = ("todo", "doing")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # How many closed items the board shows before collapsing to a count.
 CLOSED_PREVIEW = 3
@@ -29,7 +29,10 @@ CREATE TABLE IF NOT EXISTS items (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   session_id TEXT,
-  source     TEXT
+  source     TEXT,
+  claimed_by      TEXT,   -- session UUID, or "pid:N" for plain terminal use
+  claimed_by_name TEXT,   -- last-known label; the registry is authoritative
+  claimed_at      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_items_status ON items(status, id);
 """
@@ -86,12 +89,25 @@ def connect(project: str) -> sqlite3.Connection:
         pass  # e.g. a network filesystem; the default journal still works
     conn.execute("PRAGMA busy_timeout=3000")
     conn.executescript(_SCHEMA)
+    _migrate(conn)
+    return conn
+
+
+def _migrate(conn) -> None:
+    """Bring an existing database up to SCHEMA_VERSION.
+
+    CREATE TABLE IF NOT EXISTS leaves a v1 table untouched, so the claim
+    columns are added here. Guarded on the existing columns as well as
+    user_version, so a database that predates versioning still upgrades.
+    """
     version = conn.execute("PRAGMA user_version").fetchone()[0]
+    have = {r[1] for r in conn.execute("PRAGMA table_info(items)")}
+    for column in ("claimed_by", "claimed_by_name", "claimed_at"):
+        if column not in have:
+            conn.execute(f"ALTER TABLE items ADD COLUMN {column} TEXT")
     if version < SCHEMA_VERSION:
-        # No migrations to run yet; future ones gate on `version` here.
         conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     conn.commit()
-    return conn
 
 
 # --- mutations ------------------------------------------------------------
@@ -109,13 +125,77 @@ def add(conn, content: str, session_id: str = None, source: str = "cli") -> int:
 
 
 def set_status(conn, item_id: int, status: str) -> bool:
-    """Returns False when no such item, so callers can report it cleanly."""
+    """Returns False when no such item, so callers can report it cleanly.
+
+    Status and ownership are one concept: moving an item out of `doing`
+    releases whatever claim it carried. Taking it *into* `doing` is done via
+    claim(), which is atomic; this path only clears.
+    """
     if status not in STATUSES:
         raise ValueError(f"unknown status {status!r} (want one of {', '.join(STATUSES)})")
-    cur = conn.execute(
-        "UPDATE items SET status = ?, updated_at = ? WHERE id = ?",
-        (status, now(), item_id),
+    if status == "doing":
+        cur = conn.execute(
+            "UPDATE items SET status = ?, updated_at = ? WHERE id = ?",
+            (status, now(), item_id),
+        )
+    else:
+        cur = conn.execute(
+            "UPDATE items SET status = ?, updated_at = ?,"
+            " claimed_by = NULL, claimed_by_name = NULL, claimed_at = NULL"
+            " WHERE id = ?",
+            (status, now(), item_id),
+        )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+# --- claims ---------------------------------------------------------------
+#
+# The claim column is not the lock. The lock is the conditional UPDATE below:
+# both racing sessions issue it, SQLite serialises them, and exactly one sees
+# rowcount 1. A read-then-write would leave a window where both read "free".
+
+
+def claim(conn, item_id: int, holder: str, holder_name: str = None,
+          steal_from: str = None, set_doing: bool = True):
+    """Try to take item `item_id` for `holder`.
+
+    Succeeds if the item is unclaimed, already ours, or held by
+    `steal_from` (the caller having established that holder is dead).
+    Returns (ok, row). On failure `row` is the current state so the caller
+    can report who holds it.
+    """
+    row = get(conn, item_id)
+    if row is None:
+        return False, None
+
+    allowed = [holder]
+    if steal_from:
+        allowed.append(steal_from)
+    placeholders = ",".join("?" * len(allowed))
+    sql = (
+        "UPDATE items SET claimed_by = ?, claimed_by_name = ?, claimed_at = ?,"
+        " updated_at = ?"
+        + (", status = 'doing'" if set_doing else "")
+        + f" WHERE id = ? AND (claimed_by IS NULL OR claimed_by IN ({placeholders}))"
     )
+    ts = now()
+    cur = conn.execute(sql, [holder, holder_name, ts, ts, item_id] + allowed)
+    conn.commit()
+    if cur.rowcount > 0:
+        return True, get(conn, item_id)
+    return False, get(conn, item_id)
+
+
+def release(conn, item_id: int, holder: str = None) -> bool:
+    """Drop our claim. With `holder` set, only if we are the one holding it."""
+    sql = ("UPDATE items SET claimed_by = NULL, claimed_by_name = NULL,"
+           " claimed_at = NULL, updated_at = ? WHERE id = ?")
+    params = [now(), item_id]
+    if holder:
+        sql += " AND claimed_by = ?"
+        params.append(holder)
+    cur = conn.execute(sql, params)
     conn.commit()
     return cur.rowcount > 0
 
@@ -158,11 +238,71 @@ def list_items(conn, statuses=None, limit: int = None):
 # --- rendering ------------------------------------------------------------
 
 
-def render_json(rows) -> str:
-    return json.dumps([dict(r) for r in rows], indent=2)
+def _age(iso: str) -> str:
+    """Compact human age of an ISO8601 timestamp, e.g. '2h', '15m'."""
+    if not iso:
+        return ""
+    try:
+        then = datetime.fromisoformat(iso)
+    except ValueError:
+        return ""
+    if then.tzinfo is None:
+        then = then.replace(tzinfo=timezone.utc)
+    secs = max(0, int((datetime.now(timezone.utc) - then).total_seconds()))
+    if secs < 90:
+        return f"{secs}s"
+    if secs < 5400:
+        return f"{secs // 60}m"
+    if secs < 172800:
+        return f"{secs // 3600}h"
+    return f"{secs // 86400}d"
 
 
-def render_board(rows, show_all: bool = False) -> str:
+def claim_info(row, me: str = None):
+    """Resolve a row's claim into something a caller can act on without
+    knowing anything about PIDs or the session registry.
+
+    state is one of:
+      unclaimed  nobody holds it
+      self       this session holds it
+      live       another session holds it and is still running -- ask first
+      stale      the holder is gone; taking it over is safe
+    """
+    import sessions  # local import: the DB layer works without it
+
+    holder = row["claimed_by"] if "claimed_by" in row.keys() else None
+    if not holder:
+        return {"state": "unclaimed", "session": None, "name": None,
+                "held_for": None, "session_status": None}
+    if me and holder == me:
+        state = "self"
+        alive, name, record = True, None, None
+    else:
+        alive, name, record = sessions.holder_status(holder)
+        state = "live" if alive else "stale"
+    stored = row["claimed_by_name"] if "claimed_by_name" in row.keys() else None
+    held = row["claimed_at"] if "claimed_at" in row.keys() else None
+    return {
+        "state": state,
+        "session": holder,
+        # Registry name wins: sessions can be renamed after claiming.
+        "name": name or stored,
+        "held_for": _age(held),
+        "claimed_at": held,
+        "session_status": (record or {}).get("status"),
+    }
+
+
+def render_json(rows, me: str = None) -> str:
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["claim"] = claim_info(r, me)
+        out.append(d)
+    return json.dumps(out, indent=2)
+
+
+def render_board(rows, show_all: bool = False, me: str = None) -> str:
     """Grouped plaintext board. Closed columns collapse unless show_all."""
     if not rows:
         return "Backlog is empty."
@@ -185,7 +325,15 @@ def render_board(rows, show_all: bool = False) -> str:
             hidden = len(items) - CLOSED_PREVIEW
         out.append(f"{status.upper()} ({len(items)})")
         for r in shown:
-            out.append(f"  {str(r['id']).rjust(width)}  {r['content']}")
+            line = f"  {str(r['id']).rjust(width)}  {r['content']}"
+            info = claim_info(r, me)
+            if info["state"] == "self":
+                line += "  [mine]"
+            elif info["state"] == "live":
+                line += f"  [held by {info['name'] or info['session']}, {info['held_for']}]"
+            elif info["state"] == "stale":
+                line += f"  [stale claim: {info['name'] or info['session']} is gone]"
+            out.append(line)
         if hidden:
             out.append(f"  {' ' * width}  ... and {hidden} older")
         out.append("")

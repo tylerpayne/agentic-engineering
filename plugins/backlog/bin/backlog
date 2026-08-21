@@ -6,12 +6,14 @@ The /backlog slash command writes to the same database via the capture hook.
 """
 
 import argparse
+import json
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 
 import backlog_db as db  # noqa: E402
+import sessions  # noqa: E402
 
 
 def _conn(args):
@@ -46,21 +48,130 @@ def cmd_list(args):
     else:
         statuses = list(db.OPEN_STATUSES)
 
+    me, _ = sessions.describe_self()
     rows = db.list_items(conn, statuses, args.limit)
     if args.json:
-        print(db.render_json(rows))
+        print(db.render_json(rows, me))
     else:
-        print(db.render_board(rows, show_all=args.all or bool(args.status)))
+        print(db.render_board(rows, show_all=args.all or bool(args.status), me=me))
     return 0
 
 
 def cmd_status(args):
     _, conn = _conn(args)
+    if args.status == "doing":
+        # Starting work == taking the claim, so route through the atomic path.
+        return _do_claim(conn, args.id, steal=getattr(args, "steal", False))
     if not db.set_status(conn, args.id, args.status):
         print(f"no item #{args.id}", file=sys.stderr)
         return 1
     row = db.get(conn, args.id)
     print(f"#{args.id} -> {args.status} - {row['content']}")
+    return 0
+
+
+def _do_claim(conn, item_id, steal=False, set_doing=True):
+    """Claim an item, taking over automatically when the holder is gone."""
+    me, my_name = sessions.describe_self()
+    row = db.get(conn, item_id)
+    if row is None:
+        print(f"no item #{item_id}", file=sys.stderr)
+        return 1
+
+    info = db.claim_info(row, me)
+    took_from = None
+    if info["state"] in ("stale", "live") and not steal:
+        if info["state"] == "live":
+            # Someone is actually working this. Refuse and say who, so the
+            # caller can go ask them rather than silently double-working it.
+            print(
+                f"#{item_id} is held by {info['name'] or info['session']}"
+                f" (live, {info['session_status'] or 'unknown'}, held {info['held_for']})",
+                file=sys.stderr,
+            )
+            print(f"  {row['content']}", file=sys.stderr)
+            print("  ask them first, or use --steal to override", file=sys.stderr)
+            return 3
+        took_from = info["session"]  # dead holder: reclaim is automatic
+
+    ok, row = db.claim(
+        conn, item_id, me, my_name,
+        steal_from=info["session"] if (steal or took_from) else None,
+        set_doing=set_doing,
+    )
+    if not ok:
+        # Lost a race between the check above and the update.
+        fresh = db.claim_info(row, me)
+        print(
+            f"#{item_id} was just claimed by {fresh['name'] or fresh['session']}",
+            file=sys.stderr,
+        )
+        return 3
+
+    note = ""
+    if took_from:
+        label = info["name"] or info["session"]
+        note = f" (took over from dead session {label}, held {info['held_for']})"
+    elif steal and info["state"] in ("live", "stale"):
+        label = info["name"] or info["session"]
+        note = f" (stolen from {label}, held {info['held_for']})"
+    verb = "claimed and -> doing" if set_doing else "claimed"
+    print(f"#{item_id} {verb}{note} - {row['content']}")
+    return 0
+
+
+def cmd_claim(args):
+    _, conn = _conn(args)
+    return _do_claim(conn, args.id, steal=args.steal, set_doing=not args.no_doing)
+
+
+def cmd_release(args):
+    _, conn = _conn(args)
+    row = db.get(conn, args.id)
+    if row is None:
+        print(f"no item #{args.id}", file=sys.stderr)
+        return 1
+    me, _ = sessions.describe_self()
+    if not db.release(conn, args.id, None if args.force else me):
+        info = db.claim_info(row, me)
+        if info["state"] == "unclaimed":
+            print(f"#{args.id} was not claimed")
+            return 0
+        print(
+            f"#{args.id} is held by {info['name'] or info['session']}, not you"
+            " (use --force to release anyway)",
+            file=sys.stderr,
+        )
+        return 3
+    print(f"#{args.id} released - {row['content']}")
+    return 0
+
+
+def cmd_sessions(args):
+    project = db.resolve_project(getattr(args, "project", None))
+    me, _ = sessions.describe_self()
+    live = sessions.live_sessions(project)
+    if args.json:
+        print(json.dumps([
+            {"session": r.get("sessionId"), "name": r.get("name"),
+             "status": r.get("status"), "kind": r.get("kind"),
+             "cwd": r.get("cwd"), "is_self": r.get("sessionId") == me}
+            for r in live
+        ], indent=2))
+        return 0
+    if not live:
+        print("No live Claude sessions in this project.")
+        return 0
+    for r in live:
+        mark = " (this session)" if r.get("sessionId") == me else ""
+        print(f"  {r.get('name')}  [{r.get('status')}]{mark}")
+    return 0
+
+
+def cmd_whoami(args):
+    me, name = sessions.describe_self()
+    print(f"session: {me}")
+    print(f"name:    {name or '(not a Claude session)'}")
     return 0
 
 
@@ -118,7 +229,31 @@ def build_parser():
     for status in db.STATUSES:
         s = sub.add_parser(status, help=f"move an item to {status}")
         s.add_argument("id", type=int)
+        if status == "doing":
+            s.add_argument("--steal", action="store_true",
+                           help="take it even if a live session holds it")
         s.set_defaults(func=cmd_status, status=status)
+
+    c = sub.add_parser("claim", help="take an item for this session")
+    c.add_argument("id", type=int)
+    c.add_argument("--steal", action="store_true",
+                   help="take it even if a live session holds it")
+    c.add_argument("--no-doing", action="store_true",
+                   help="claim without moving it to doing")
+    c.set_defaults(func=cmd_claim)
+
+    rel = sub.add_parser("release", help="drop this session's claim")
+    rel.add_argument("id", type=int)
+    rel.add_argument("--force", action="store_true",
+                     help="release even if another session holds it")
+    rel.set_defaults(func=cmd_release)
+
+    se = sub.add_parser("sessions", help="live Claude sessions in this project")
+    se.add_argument("--json", action="store_true")
+    se.set_defaults(func=cmd_sessions)
+
+    w = sub.add_parser("whoami", help="this session's id and name")
+    w.set_defaults(func=cmd_whoami)
 
     e = sub.add_parser("edit", help="rewrite an item's text")
     e.add_argument("id", type=int)

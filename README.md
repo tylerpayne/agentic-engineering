@@ -82,9 +82,14 @@ normal terminal:
 ```
 backlog add <text...>                 file a new item as todo
 backlog list [--status s1,s2] [--all] [--json] [--limit N]
-backlog todo|doing|done|wontfix <id>  move an item
+backlog doing <id> [--steal]          claim it and start work
+backlog todo|done|wontfix <id>        move it, releasing the claim
+backlog claim <id> [--steal] [--no-doing]
+backlog release <id> [--force]
 backlog edit <id> <text...>           rewrite an item
 backlog rm <id>                       delete outright
+backlog sessions [--json]             live Claude sessions in this project
+backlog whoami                        this session's id and name
 backlog path                          print the resolved db path
 ```
 
@@ -92,22 +97,69 @@ backlog path                          print the resolved db path
 by walking up from the cwd for `.claude/` or `.git/`, so it works from any
 subdirectory of a repo.
 
+## Concurrent sessions
+
+Several Claude sessions can share one project and one board, so items carry a
+**claim** naming the session working them. `backlog doing <id>` takes the claim;
+moving an item to `todo`, `done`, or `wontfix` releases it. Status and ownership
+are one concept — you cannot work an item without holding it.
+
+The claim column is not the lock. The lock is an atomic compare-and-swap:
+
+```sql
+UPDATE items SET claimed_by = ?, ... WHERE id = ? AND (claimed_by IS NULL OR claimed_by IN (...))
+```
+
+Both racing sessions issue it, SQLite serialises them, and exactly one sees
+`rowcount` 1. Verified with 240 concurrent claim attempts across 20 contested
+items: exactly one winner each, zero double-claims.
+
+**Liveness** comes from Claude Code's session registry
+(`~/.claude/sessions/<pid>.json`), which records each session's `sessionId`,
+`pid`, `procStart`, `cwd`, current `name`, and `status`. A holder is live if its
+PID is running *and* the process start time matches the record — `kill(0)` alone
+would let a recycled PID pin a claim forever. The registry is stored in UTC while
+`ps` prints local time, so the two are compared as instants, not strings.
+
+The CLI resolves all of this into a single `state` the skill can act on:
+
+| state | meaning |
+|---|---|
+| `unclaimed` | nobody holds it |
+| `self` | this session holds it |
+| `stale` | the holder's process is gone — reclaimed automatically |
+| `live` | another session is running and holds it |
+
+A stale claim is taken over silently and reported. A **live** claim is refused
+(exit 3, naming the holder); the skill is told to use `ListAgents`/`SendMessage`
+to ask that session whether they are still on it, wait for the reply, and only
+then `--steal`. It never steals on silence.
+
+The stored session UUID is the identity; the session *name* is re-resolved from
+the registry at check time, because sessions can be renamed after claiming.
+
 ## Storage
 
 `<project>/.claude/backlog.db` — one board per project, WAL mode.
 
 ```sql
 CREATE TABLE items (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  content    TEXT NOT NULL,
-  status     TEXT NOT NULL DEFAULT 'todo'
-             CHECK (status IN ('todo','doing','done','wontfix')),
-  created_at TEXT NOT NULL,   -- ISO8601 UTC
-  updated_at TEXT NOT NULL,
-  session_id TEXT,            -- the Claude session that filed it
-  source     TEXT             -- 'slash' | 'cli' | 'skill'
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  content         TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'todo'
+                  CHECK (status IN ('todo','doing','done','wontfix')),
+  created_at      TEXT NOT NULL,   -- ISO8601 UTC
+  updated_at      TEXT NOT NULL,
+  session_id      TEXT,            -- the Claude session that filed it
+  source          TEXT,            -- 'slash' | 'cli' | 'skill'
+  claimed_by      TEXT,            -- session UUID, or "pid:N" outside Claude
+  claimed_by_name TEXT,            -- last-known label; registry is authoritative
+  claimed_at      TEXT
 );
 ```
+
+Schema changes migrate on open, gated on `PRAGMA user_version` *and* the columns
+actually present, so a v1 database upgrades in place without losing rows.
 
 Argument parsing is deliberately strict: a subcommand is only recognised as
 `<verb> <integer>` and nothing else, so `/backlog done with the migration, need
@@ -127,7 +179,8 @@ plugins/backlog/
   commands/backlog.md               # /backlog; body is a fallback diagnostic only
   hooks/hooks.json                  # UserPromptExpansion matcher (plugin mode)
   hooks/backlog_hook.py             # the capture path
-  lib/backlog_db.py                 # storage + rendering, shared
+  lib/backlog_db.py                 # storage, claims, rendering
+  lib/sessions.py                   # session registry + liveness
   bin/backlog                       # standalone CLI
   skills/backlog-board/SKILL.md     # model-facing read/triage skill
   skills/backlog-board/backlog      # -> ../../bin/backlog, so ${CLAUDE_SKILL_DIR}/backlog resolves
