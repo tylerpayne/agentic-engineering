@@ -1,0 +1,10 @@
+{
+  "name": "backlog",
+  "version": "0.1.0",
+  "description": "File quick notes into a per-project SQLite kanban backlog with /backlog, without touching the Claude conversation.",
+  "author": {
+    "name": "Tyler Payne",
+    "email": "tylerrfpayne@gmail.com"
+  },
+  "keywords": ["backlog", "kanban", "sqlite", "productivity"]
+}

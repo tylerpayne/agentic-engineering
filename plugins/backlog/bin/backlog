@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""backlog — a per-project kanban board in SQLite.
+
+Usable from a normal terminal, and the interface the backlog-board skill drives.
+The /backlog slash command writes to the same database via the capture hook.
+"""
+
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+
+import backlog_db as db  # noqa: E402
+
+
+def _conn(args):
+    project = db.resolve_project(getattr(args, "project", None))
+    return project, db.connect(project)
+
+
+def cmd_add(args):
+    content = " ".join(args.text).strip()
+    if not content:
+        print("nothing to file: give me some text", file=sys.stderr)
+        return 1
+    _, conn = _conn(args)
+    item_id = db.add(conn, content, source="cli")
+    print(f"#{item_id} filed - {content}")
+    return 0
+
+
+def cmd_list(args):
+    _, conn = _conn(args)
+    if args.status:
+        statuses = [s.strip() for s in args.status.split(",") if s.strip()]
+        bad = [s for s in statuses if s not in db.STATUSES]
+        if bad:
+            print(
+                f"unknown status {', '.join(bad)} (want: {', '.join(db.STATUSES)})",
+                file=sys.stderr,
+            )
+            return 2
+    elif args.all:
+        statuses = None
+    else:
+        statuses = list(db.OPEN_STATUSES)
+
+    rows = db.list_items(conn, statuses, args.limit)
+    if args.json:
+        print(db.render_json(rows))
+    else:
+        print(db.render_board(rows, show_all=args.all or bool(args.status)))
+    return 0
+
+
+def cmd_status(args):
+    _, conn = _conn(args)
+    if not db.set_status(conn, args.id, args.status):
+        print(f"no item #{args.id}", file=sys.stderr)
+        return 1
+    row = db.get(conn, args.id)
+    print(f"#{args.id} -> {args.status} - {row['content']}")
+    return 0
+
+
+def cmd_edit(args):
+    content = " ".join(args.text).strip()
+    if not content:
+        print("nothing to write: give me some text", file=sys.stderr)
+        return 1
+    _, conn = _conn(args)
+    if not db.edit(conn, args.id, content):
+        print(f"no item #{args.id}", file=sys.stderr)
+        return 1
+    print(f"#{args.id} updated - {content}")
+    return 0
+
+
+def cmd_rm(args):
+    _, conn = _conn(args)
+    row = db.get(conn, args.id)
+    if row is None:
+        print(f"no item #{args.id}", file=sys.stderr)
+        return 1
+    db.remove(conn, args.id)
+    print(f"#{args.id} deleted - {row['content']}")
+    return 0
+
+
+def cmd_path(args):
+    project = db.resolve_project(getattr(args, "project", None))
+    print(db.db_path(project))
+    return 0
+
+
+def build_parser():
+    p = argparse.ArgumentParser(
+        prog="backlog", description="A per-project kanban backlog stored in SQLite."
+    )
+    p.add_argument(
+        "--project",
+        help="project root to use (default: walk up from cwd for .claude/ or .git/)",
+    )
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    a = sub.add_parser("add", help="file a new item as todo")
+    a.add_argument("text", nargs="+")
+    a.set_defaults(func=cmd_add)
+
+    ls = sub.add_parser("list", help="show the board (open items by default)")
+    ls.add_argument("--status", help="comma-separated statuses to include")
+    ls.add_argument("--all", action="store_true", help="include done and wontfix")
+    ls.add_argument("--json", action="store_true", help="machine-readable output")
+    ls.add_argument("--limit", type=int)
+    ls.set_defaults(func=cmd_list)
+
+    for status in db.STATUSES:
+        s = sub.add_parser(status, help=f"move an item to {status}")
+        s.add_argument("id", type=int)
+        s.set_defaults(func=cmd_status, status=status)
+
+    e = sub.add_parser("edit", help="rewrite an item's text")
+    e.add_argument("id", type=int)
+    e.add_argument("text", nargs="+")
+    e.set_defaults(func=cmd_edit)
+
+    r = sub.add_parser("rm", help="delete an item outright")
+    r.add_argument("id", type=int)
+    r.set_defaults(func=cmd_rm)
+
+    pa = sub.add_parser("path", help="print the resolved database path")
+    pa.set_defaults(func=cmd_path)
+
+    return p
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

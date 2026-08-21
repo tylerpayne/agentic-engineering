@@ -1,0 +1,22 @@
+{
+  "description": "Capture /backlog invocations before they reach the model",
+  "hooks": {
+    "UserPromptExpansion": [
+      {
+        "matcher": "^(backlog:)?backlog$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/backlog_hook.py",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

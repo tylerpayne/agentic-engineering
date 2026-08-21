@@ -1,0 +1,20 @@
+{
+  "name": "backlog-local",
+  "description": "Local marketplace hosting the backlog plugin",
+  "owner": {
+    "name": "Tyler Payne",
+    "email": "tylerrfpayne@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "backlog",
+      "description": "File quick notes into a per-project SQLite kanban backlog with /backlog, without touching the Claude conversation.",
+      "author": {
+        "name": "Tyler Payne",
+        "email": "tylerrfpayne@gmail.com"
+      },
+      "source": "./plugins/backlog",
+      "category": "productivity"
+    }
+  ]
+}
