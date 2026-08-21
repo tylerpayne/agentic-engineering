@@ -1,9 +1,9 @@
 {
-  "description": "Capture /backlog invocations before they reach the model",
+  "description": "Apply /backlog:* commands before they reach the model",
   "hooks": {
     "UserPromptExpansion": [
       {
-        "matcher": "^(backlog:)?backlog$",
+        "matcher": "^(backlog:)?(add|list|doing|done|todo|wontfix|rm)$",
         "hooks": [
           {
             "type": "command",

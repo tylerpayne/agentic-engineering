@@ -1,6 +1,6 @@
 {
-  "name": "backlog-local",
-  "description": "Local marketplace hosting the backlog plugin",
+  "name": "tylerpayne",
+  "description": "Tyler Payne's Claude Code plugins",
   "owner": {
     "name": "Tyler Payne",
     "email": "tylerrfpayne@gmail.com"
@@ -14,7 +14,8 @@
         "email": "tylerrfpayne@gmail.com"
       },
       "source": "./plugins/backlog",
-      "category": "productivity"
+      "category": "productivity",
+      "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/backlog"
     }
   ]
 }

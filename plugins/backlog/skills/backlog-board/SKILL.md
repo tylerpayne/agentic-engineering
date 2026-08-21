@@ -1,12 +1,12 @@
 ---
 name: backlog-board
-description: Read, triage, and work items from this project's backlog — a SQLite kanban board at .claude/backlog.db that the user files into with /backlog. Use when the user asks what's on their backlog, to pick up or work a backlog item, to mark something done, or to plan from the backlog.
+description: Read, triage, and work items from this project's backlog — a SQLite kanban board at .claude/backlog.db that the user files into with /backlog:add. Use when the user asks what's on their backlog, to pick up or work a backlog item, to mark something done, or to plan from the backlog.
 allowed-tools: Bash(backlog:*), Bash(${CLAUDE_SKILL_DIR}/backlog:*)
 ---
 
 # The project backlog
 
-The user captures stray thoughts mid-session with `/backlog <message>`. Those
+The user captures stray thoughts mid-session with `/backlog:add <message>`. Those
 notes land in a SQLite kanban board at `<project>/.claude/backlog.db` without
 ever entering the conversation — so the backlog holds things you have never
 seen. Read it; do not reconstruct it from memory.
@@ -45,7 +45,7 @@ through the CLI so schema changes cannot break you.
 
 | Status | Meaning |
 |---|---|
-| `todo` | Filed, not started. Everything from `/backlog` lands here. |
+| `todo` | Filed, not started. Everything from `/backlog:add` lands here. |
 | `doing` | Actively being worked right now. |
 | `done` | Finished. |
 | `wontfix` | Consciously dropped — kept for the record rather than deleted. |
@@ -135,8 +135,8 @@ holder replied that they are done. It is never a way around a timeout.
   Never rewrite a note to match what you did to it.
 - `release --force` and `doing --steal` override another session's claim. Both
   need the user's say-so or the holder's agreement.
-- File new items with `backlog add`. Do not invoke `/backlog` — that is a
-  user-only command and it is not available to you.
+- File new items with `backlog add`. Do not invoke `/backlog:add` — those
+  slash commands are user-only and are not available to you.
 
 ## Reporting
 
@@ -149,6 +149,6 @@ If `.claude/backlog-fallback.txt` exists, the capture hook hit a database error
 and spilled notes there as plaintext. Mention it — those items are not on the
 board and the user probably does not know.
 
-If the `backlog` command cannot be found at all, say so and point the user at
-`install.sh` in the plugin repo. Do not work around it by reading the database
-directly — a board you cannot write back to is worse than no board.
+If the `backlog` command cannot be found at all, say so and tell the user to
+check `/plugin` and run `/reload-plugins`. Do not work around it by reading the
+database directly — a board you cannot write back to is worse than no board.

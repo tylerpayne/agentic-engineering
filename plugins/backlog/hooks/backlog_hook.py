@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""UserPromptExpansion hook: capture /backlog without invoking the model.
+"""UserPromptExpansion hook: apply /backlog:* without invoking the model.
 
 Claude Code fires this event when a slash command expands, *before* the command
 body is rendered into a prompt. Blocking here returns shouldQuery: false, so the
@@ -26,12 +26,15 @@ import sessions  # noqa: E402
 #   also pushes an isMeta entry into the transcript.
 BLOCK_STYLE = "block"
 
-# Status verbs, plus delete. Matched only as `<verb> <integer>` and nothing else,
-# so "/backlog done with the migration, need to clean up" files a note rather
-# than being misread as a status change.
-_VERBS = set(db.STATUSES) | {"rm"}
-_SUBCOMMAND = re.compile(r"^(%s)\s+#?(\d+)$" % "|".join(sorted(_VERBS)), re.IGNORECASE)
-_LIST = re.compile(r"^(ls|list)$", re.IGNORECASE)
+# The verb is the command name (`/backlog:done 3`), not something parsed out of
+# the arguments, so a note like "done with the migration" can never be mistaken
+# for a status change.
+_ID = re.compile(r"^#?(\d+)$")
+
+
+def parse_verb(command_name: str) -> str:
+    """`backlog:done` -> `done`. Bare `done` also works."""
+    return (command_name or "").rsplit(":", 1)[-1].strip().lower()
 
 
 def resolve_project(arg_project, payload):
@@ -49,39 +52,45 @@ def resolve_project(arg_project, payload):
     return db.resolve_project(os.getcwd())
 
 
-def handle(args_text: str, project: str, session_id: str) -> str:
-    """Do the work and return the text to show the user."""
+def handle(verb: str, args_text: str, project: str, session_id: str) -> str:
+    """Apply one verb and return the text to show the user."""
     text = (args_text or "").strip()
     conn = db.connect(project)
+    me = session_id or sessions.local_holder_id()
 
-    if not text or _LIST.match(text):
+    if verb == "list":
         rows = db.list_items(conn, list(db.OPEN_STATUSES))
-        board = db.render_board(rows, me=session_id or sessions.local_holder_id())
         if not rows:
             closed = db.render_counts(conn)
-            if closed != "empty":
-                return f"No open items. ({closed})"
-            return "Backlog is empty."
-        return board
+            return f"No open items. ({closed})" if closed != "empty" else "Backlog is empty."
+        return db.render_board(rows, me=me)
 
-    match = _SUBCOMMAND.match(text)
-    if match:
-        verb, raw_id = match.group(1).lower(), int(match.group(2))
-        if verb == "rm":
-            row = db.get(conn, raw_id)
-            if row is None:
-                return f"No item #{raw_id}."
-            db.remove(conn, raw_id)
-            return f"#{raw_id} deleted - {row['content']}"
-        if verb == "doing":
-            return _start(conn, raw_id, session_id)
-        if not db.set_status(conn, raw_id, verb):
-            return f"No item #{raw_id}."
-        row = db.get(conn, raw_id)
-        return f"#{raw_id} -> {verb} - {row['content']}\n\n{db.render_counts(conn)}"
+    if verb == "add":
+        if not text:
+            return "Nothing to file. Usage: /backlog:add <message>"
+        item_id = db.add(conn, text, session_id=session_id, source="slash")
+        return f"#{item_id} filed - {text}\n\n{db.render_counts(conn)}"
 
-    item_id = db.add(conn, text, session_id=session_id, source="slash")
-    return f"#{item_id} filed - {text}\n\n{db.render_counts(conn)}"
+    # Every remaining verb acts on an id.
+    match = _ID.match(text)
+    if not match:
+        return f"Usage: /backlog:{verb} <id>" + (f"  (got {text!r})" if text else "")
+    item_id = int(match.group(1))
+
+    if verb == "rm":
+        row = db.get(conn, item_id)
+        if row is None:
+            return f"No item #{item_id}."
+        db.remove(conn, item_id)
+        return f"#{item_id} deleted - {row['content']}"
+
+    if verb == "doing":
+        return _start(conn, item_id, session_id)
+
+    if not db.set_status(conn, item_id, verb):
+        return f"No item #{item_id}."
+    row = db.get(conn, item_id)
+    return f"#{item_id} -> {verb} - {row['content']}\n\n{db.render_counts(conn)}"
 
 
 def _start(conn, item_id: int, session_id: str) -> str:
@@ -164,15 +173,16 @@ def main() -> int:
         if idx + 1 < len(argv):
             arg_project = argv[idx + 1]
 
-    payload, text, project = {}, "", os.getcwd()
+    payload, text, project, verb = {}, "", os.getcwd(), "add"
     try:
         raw = sys.stdin.read()
         payload = json.loads(raw) if raw.strip() else {}
+        verb = parse_verb(payload.get("command_name")) or "add"
         text = (payload.get("command_args") or "").strip()
         project = resolve_project(arg_project, payload)
-        message = handle(text, project, payload.get("session_id"))
+        message = handle(verb, text, project, payload.get("session_id"))
     except Exception as exc:  # noqa: BLE001 - a hook must never leak the prompt
-        message = salvage(project, text, exc)
+        message = salvage(project, text if verb == "add" else "", exc)
 
     emit(message)
     return 0
