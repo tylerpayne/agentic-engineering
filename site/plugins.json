@@ -1,0 +1,23 @@
+{
+  "backlog": {
+    "description": "Read and update a project's SQLite kanban board.",
+    "agent": {
+      "download": true,
+      "reason": "The agent uses the backlog-board skill and backlog CLI to read, claim, and update work items."
+    }
+  },
+  "later": {
+    "description": "Claude Code commands for users to park notes and submit them later.",
+    "agent": {
+      "download": false,
+      "reason": "User-facing Claude Code integration. The agent receives submitted notes; it does not use the plugin itself."
+    }
+  },
+  "plain-english": {
+    "description": "Writing instructions for plain, declarative English.",
+    "agent": {
+      "download": true,
+      "reason": "The agent reads and applies the plain-english skill. No binaries are required."
+    }
+  }
+}

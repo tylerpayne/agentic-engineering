@@ -39,6 +39,15 @@ The web version serves agents that do not support Claude marketplaces:
   libraries, documentation, and license with the directory layout preserved.
 - `plugins/<plugin>/...` serves individual files at direct URLs.
 
+`site/plugins.json` supplies factual web descriptions and our custom `agent`
+metadata. Set `agent.download` to true when the agent itself uses the skill or
+tool, and explain the decision in `agent.reason`. These fields appear in the
+JSON index, page, and agent guide. They are our convention, not marketplace
+schema fields. Every new plugin needs an explicit entry; the build fails if one
+is missing. Backlog and plain-english are agent downloads. Later is user-facing
+Claude Code integration, so agents should skip it. Its existing archive URL
+remains available, but the page and guide do not promote it as an agent download.
+
 The Python CLIs work independently; Claude-specific hooks and session integration
 are not automatically available to other agents. The generated guide explains
 how to substitute local binary paths for Claude-specific skill variables.

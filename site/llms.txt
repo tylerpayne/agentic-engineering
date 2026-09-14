@@ -11,9 +11,18 @@ bundle URLs, SHA-256 checksums, and every downloadable file with its URL.
 Paths are relative to the named plugin's directory. An empty skills array
 means the package is a CLI utility rather than a SKILL.md-based skill.
 
+Each entry has custom `agent` metadata (this site's convention, not a standard):
+- `agent.download`: boolean. Only select entries with true for agent installation.
+- `agent.reason`: explains whether and how an agent uses this plugin.
+
+Entries marked false remain in the index for completeness and existing download
+links, but are not agent installation candidates. In particular, later is a
+user-facing Claude Code plugin. The agent receives the notes submitted by the
+user; it does not need to download or operate later.
+
 ## Download a particular skill and its dependencies
 
-1. Find the entry whose `skills` array contains the SKILL.md you need.
+1. Select an entry with `agent.download: true` whose `skills` array contains the SKILL.md you need.
 2. Download its `archive` URL and verify the archive against `sha256` in the index.
 3. Extract the tar.gz into a local tools directory. Each archive has a top-level
    directory named after the plugin. Keep its layout intact: bin/ tools import
@@ -21,9 +30,8 @@ means the package is a CLI utility rather than a SKILL.md-based skill.
 4. Read the included README.md and the selected SKILL.md. Register the skill
    with your agent's skill mechanism, or load its instructions directly.
 5. Run tools by their extracted absolute path, or add that plugin's bin/
-   directory to PATH. The backlog and later tools require Python 3 with SQLite
-   support. `python3 /absolute/path/backlog/bin/backlog --help` and
-   `python3 /absolute/path/later/bin/later --help` describe their CLI interfaces.
+   directory to PATH. Backlog requires Python 3 with SQLite support.
+   `python3 /absolute/path/backlog/bin/backlog --help` describes its CLI.
 
 Example (from a directory where you want to store tools):
 

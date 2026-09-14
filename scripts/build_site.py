@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def build(output, repository, ref):
     marketplace = json.loads((ROOT / '.claude-plugin/marketplace.json').read_text())
+    metadata = json.loads((ROOT / 'site/plugins.json').read_text())
     cards = []
     owner, repo = repository.split('/')
     url = f'https://{owner}.github.io/' + ('' if repo.lower() == f'{owner}.github.io'.lower() else f'{repo}/')
@@ -21,6 +22,10 @@ def build(output, repository, ref):
     (output / 'downloads').mkdir(exist_ok=True)
     index = {'schema_version': 1, 'revision': ref, 'plugins': []}
     for plugin in marketplace['plugins']:
+        details = metadata[plugin['name']]
+        agent = details['agent']
+        if type(agent['download']) is not bool or not agent['reason'].strip():
+            raise ValueError(f'Invalid agent metadata: {plugin["name"]}')
         source = plugin['source']
         if isinstance(source, str):
             path = (ROOT / source).resolve()
@@ -53,7 +58,8 @@ def build(output, repository, ref):
                 for entry in files:
                     bundle.add(output / 'plugins' / plugin['name'] / entry['path'],
                                arcname=f'{plugin["name"]}/{entry["path"]}')
-            index['plugins'].append({'name': plugin['name'], 'description': plugin['description'],
+            index['plugins'].append({'name': plugin['name'], 'description': details['description'],
+                                     'agent': agent,
                                      'archive': url + archive.relative_to(output).as_posix(),
                                      'sha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
                                      'skills': [f['path'] for f in files if f['path'].endswith('/SKILL.md')],
@@ -67,9 +73,11 @@ def build(output, repository, ref):
             }
         name = html.escape(plugin['name'])
         link = html.escape(plugin.get('homepage', f'https://github.com/{repository}'), quote=True)
-        cards.append(f'<article><h2>{name}</h2><p>{html.escape(plugin["description"])}</p>'
-                     f'<p><a href="downloads/{name}.tar.gz">Download bundle ↓</a></p>'
-                     f'<a href="{link}">Read the docs <span aria-hidden="true">↗</span></a></article>')
+        download = f'<a href="downloads/{name}.tar.gz">Download</a> · ' if agent['download'] else ''
+        audience = 'Agent download' if agent['download'] else 'Claude Code · user-facing'
+        cards.append(f'<article><h2>{name}</h2><p>{html.escape(details["description"])}</p>'
+                     f'<p class="audience">{audience}</p><p>{html.escape(agent["reason"])}</p>'
+                     f'<p>{download}<a href="{link}">Documentation</a></p></article>')
     template = (ROOT / 'site/index.html').read_text()
     page = template.replace('{{CARDS}}', '\n'.join(cards)).replace('{{MARKETPLACE_URL}}', html.escape(url + 'marketplace.json'))
     page = page.replace('{{REPOSITORY_URL}}', html.escape(f'https://github.com/{repository}'))
@@ -83,7 +91,11 @@ def build(output, repository, ref):
     (output / 'index.json').write_text(json.dumps(index, indent=2) + '\n')
     guide = (ROOT / 'site/llms.txt').read_text().replace('{{BASE_URL}}', url)
     for entry in index['plugins']:
-        guide += f'\n## {entry["name"]}\n\n{entry["description"]}\n\nBundle: {entry["archive"]}\n'
+        guide += f'\n## {entry["name"]}\n\n{entry["description"]}\n'
+        guide += f'Agent download: {str(entry["agent"]["download"]).lower()}\n{entry["agent"]["reason"]}\n'
+        if not entry['agent']['download']:
+            continue
+        guide += f'Bundle: {entry["archive"]}\n'
         guide += 'Skills: ' + (', '.join(entry['skills']) or 'None; CLI utility with README and command documentation.') + '\n'
         guide += 'Binaries: ' + (', '.join(entry['binaries']) or 'None.') + '\n'
         for file in entry['files']:
