@@ -59,11 +59,7 @@ def handle(verb: str, args_text: str, project: str, session_id: str) -> str:
     me = session_id or sessions.local_holder_id()
 
     if verb == "list":
-        rows = db.list_items(conn, list(db.OPEN_STATUSES))
-        if not rows:
-            closed = db.render_counts(conn)
-            return f"No open items. ({closed})" if closed != "empty" else "Backlog is empty."
-        return db.render_board(rows, me=me)
+        return _list(conn, text, me)
 
     if verb == "add":
         if not text:
@@ -91,6 +87,35 @@ def handle(verb: str, args_text: str, project: str, session_id: str) -> str:
         return f"No item #{item_id}."
     row = db.get(conn, item_id)
     return f"#{item_id} -> {verb} - {row['content']}\n\n{db.render_counts(conn)}"
+
+
+def _list(conn, text: str, me: str) -> str:
+    """`/backlog:list [page]` -- one page of open items, most recent first.
+
+    Unbounded by default was fine when a board was a day old. It is not fine
+    once it has a few hundred rows, so the argument is a 1-based page number.
+    """
+    page_no = 1
+    if text:
+        match = _ID.match(text)
+        if not match:
+            return f"Usage: /backlog:list [page]  (got {text!r})"
+        page_no = max(1, int(match.group(1)))
+
+    offset = (page_no - 1) * db.DEFAULT_LIMIT
+    pg = db.page(conn, list(db.OPEN_STATUSES), limit=db.DEFAULT_LIMIT, offset=offset)
+
+    if not pg["rows"]:
+        if pg["total"]:
+            last = (pg["total"] + db.DEFAULT_LIMIT - 1) // db.DEFAULT_LIMIT
+            return f"No open items on page {page_no} ({pg['total']} open, {last} pages)."
+        closed = db.render_counts(conn)
+        return f"No open items. ({closed})" if closed != "empty" else "Backlog is empty."
+
+    board = db.render_board(pg["rows"], me=me, collapse_closed=False,
+                            counts=pg["counts"])
+    note = db.render_page_note(pg, f"/backlog:list {page_no + 1}")
+    return f"{board}\n\n{note}" if note else board
 
 
 def _start(conn, item_id: int, session_id: str) -> str:

@@ -17,8 +17,15 @@ OPEN_STATUSES = ("todo", "doing")
 
 SCHEMA_VERSION = 2
 
-# How many closed items the board shows before collapsing to a count.
+# How many closed items the board shows before collapsing to a count. Only
+# applies to an unpaginated board; a page is already bounded.
 CLOSED_PREVIEW = 3
+
+# Reads default to one page of the most recent items. The board is read into a
+# model's context far more often than a human's terminal, and an unbounded read
+# of a long-lived board is the one thing here that can blow up a context window.
+# `limit=0` means no limit and has to be asked for explicitly.
+DEFAULT_LIMIT = 10
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -222,17 +229,56 @@ def get(conn, item_id: int):
     return conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
 
 
-def list_items(conn, statuses=None, limit: int = None):
-    sql = "SELECT * FROM items"
-    params = []
+def page(conn, statuses=None, limit: int = DEFAULT_LIMIT, offset: int = 0):
+    """One page of the board, newest first, plus enough to describe the rest.
+
+    `offset` counts back from the newest item, so offset=0 is the most recent
+    page and offset=10 the ten before those. Rows come back oldest-first within
+    the page, which is how the board reads; the paging itself is newest-first so
+    that a stale item filed months ago never crowds out this morning's note.
+
+    `limit=0` disables the limit. Callers that hand results to a model should
+    not do that without knowing how big the board is.
+    """
+    limit = max(0, int(limit or 0))
+    offset = max(0, int(offset or 0))
+
+    where, params = "", []
     if statuses:
-        sql += " WHERE status IN (%s)" % ",".join("?" * len(statuses))
-        params.extend(statuses)
-    sql += " ORDER BY id"
+        where = " WHERE status IN (%s)" % ",".join("?" * len(statuses))
+        params = list(statuses)
+
+    counts = {
+        r["status"]: r["n"]
+        for r in conn.execute(
+            "SELECT status, COUNT(*) n FROM items" + where + " GROUP BY status", params
+        )
+    }
+    total = sum(counts.values())
+
+    sql = "SELECT * FROM items" + where + " ORDER BY id DESC"
+    args = list(params)
     if limit:
-        sql += " LIMIT ?"
-        params.append(limit)
-    return conn.execute(sql, params).fetchall()
+        sql += " LIMIT ? OFFSET ?"
+        args += [limit, offset]
+    elif offset:
+        sql += " LIMIT -1 OFFSET ?"  # SQLite wants a LIMIT before OFFSET
+        args.append(offset)
+    rows = list(reversed(conn.execute(sql, args).fetchall()))
+
+    return {
+        "rows": rows,
+        "total": total,
+        "shown": len(rows),
+        "offset": offset,
+        "limit": limit,
+        "newer": offset,
+        "older": max(0, total - offset - len(rows)),
+        # Per-status totals across the whole filtered board, not just this page,
+        # so a column header can say "3 of 21" instead of implying 3 is all.
+        "counts": counts,
+    }
+
 
 
 # --- rendering ------------------------------------------------------------
@@ -293,16 +339,46 @@ def claim_info(row, me: str = None):
     }
 
 
-def render_json(rows, me: str = None) -> str:
-    out = []
-    for r in rows:
+def render_page_json(pg, me: str = None) -> str:
+    """The page plus its own extent, so a reader knows what it is *not* seeing."""
+    items = []
+    for r in pg["rows"]:
         d = dict(r)
         d["claim"] = claim_info(r, me)
-        out.append(d)
-    return json.dumps(out, indent=2)
+        items.append(d)
+    return json.dumps(
+        {
+            "items": items,
+            "total": pg["total"],
+            "shown": pg["shown"],
+            "offset": pg["offset"],
+            "limit": pg["limit"],
+            "newer": pg["newer"],
+            "older": pg["older"],
+            "has_more": pg["older"] > 0,
+            "next_offset": (pg["offset"] + pg["shown"]) if pg["older"] > 0 else None,
+        },
+        indent=2,
+    )
 
 
-def render_board(rows, show_all: bool = False, me: str = None) -> str:
+def render_page_note(pg, next_cmd: str = "backlog list") -> str:
+    """One line describing the page, or "" when the page is the whole board."""
+    if not pg["limit"] or (pg["older"] == 0 and pg["newer"] == 0):
+        return ""
+    if pg["shown"] == 0:
+        return f"Nothing at offset {pg['offset']} ({pg['total']} total)."
+    if pg["newer"]:
+        head = f"{pg['shown']} of {pg['total']}, skipping {pg['newer']} newer"
+    else:
+        head = f"{pg['shown']} most recent of {pg['total']}"
+    if pg["older"]:
+        return f"{head} - {pg['older']} older: {next_cmd}"
+    return head
+
+
+def render_board(rows, show_all: bool = False, me: str = None,
+                 collapse_closed: bool = True, counts=None) -> str:
     """Grouped plaintext board. Closed columns collapse unless show_all."""
     if not rows:
         return "Backlog is empty."
@@ -320,10 +396,12 @@ def render_board(rows, show_all: bool = False, me: str = None) -> str:
         closed = status in ("done", "wontfix")
         hidden = 0
         shown = items
-        if closed and not show_all and len(items) > CLOSED_PREVIEW:
+        if closed and collapse_closed and not show_all and len(items) > CLOSED_PREVIEW:
             shown = items[-CLOSED_PREVIEW:]
             hidden = len(items) - CLOSED_PREVIEW
-        out.append(f"{status.upper()} ({len(items)})")
+        overall = (counts or {}).get(status, len(items))
+        tally = len(items) if overall == len(items) else f"{len(items)} of {overall}"
+        out.append(f"{status.upper()} ({tally})")
         for r in shown:
             line = f"  {str(r['id']).rjust(width)}  {r['content']}"
             info = claim_info(r, me)

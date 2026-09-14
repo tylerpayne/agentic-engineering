@@ -48,13 +48,49 @@ def cmd_list(args):
     else:
         statuses = list(db.OPEN_STATUSES)
 
+    if args.offset < 0:
+        print("--offset cannot be negative", file=sys.stderr)
+        return 2
+    if args.limit < 0:
+        print("--limit cannot be negative (use 0 for no limit)", file=sys.stderr)
+        return 2
+
     me, _ = sessions.describe_self()
-    rows = db.list_items(conn, statuses, args.limit)
+    pg = db.page(conn, statuses, limit=args.limit, offset=args.offset)
     if args.json:
-        print(db.render_json(rows, me))
+        print(db.render_page_json(pg, me))
+        return 0
+
+    show_all = args.all or bool(args.status)
+    note = db.render_page_note(pg, _next_cmd(args, pg))
+    if pg["rows"]:
+        # A page is already bounded, so the closed-column collapse would just
+        # hide part of a page the user explicitly asked for.
+        print(db.render_board(pg["rows"], show_all=show_all, me=me,
+                              collapse_closed=not pg["limit"], counts=pg["counts"]))
+        if note:
+            print()
+            print(note)
+    elif note:
+        print(note)  # already says why the page is empty
     else:
-        print(db.render_board(rows, show_all=args.all or bool(args.status), me=me))
+        print("Backlog is empty." if show_all else "No open items.")
     return 0
+
+
+def _next_cmd(args, pg) -> str:
+    """The exact command that shows the next page, flags and all."""
+    parts = ["backlog list"]
+    if args.status:
+        parts.append(f"--status {args.status}")
+    elif args.all:
+        parts.append("--all")
+    if args.json:
+        parts.append("--json")
+    if args.limit != db.DEFAULT_LIMIT:
+        parts.append(f"--limit {args.limit}")
+    parts.append(f"--offset {pg['offset'] + pg['shown']}")
+    return " ".join(parts)
 
 
 def cmd_status(args):
@@ -223,7 +259,14 @@ def build_parser():
     ls.add_argument("--status", help="comma-separated statuses to include")
     ls.add_argument("--all", action="store_true", help="include done and wontfix")
     ls.add_argument("--json", action="store_true", help="machine-readable output")
-    ls.add_argument("--limit", type=int)
+    ls.add_argument(
+        "--limit", type=int, default=db.DEFAULT_LIMIT,
+        help=f"items per page (default {db.DEFAULT_LIMIT}, 0 for no limit)",
+    )
+    ls.add_argument(
+        "--offset", type=int, default=0,
+        help="skip this many of the most recent items",
+    )
     ls.set_defaults(func=cmd_list)
 
     for status in db.STATUSES:

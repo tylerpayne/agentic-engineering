@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""later - park notes for Claude, then hand them over all at once.
+
+`later push` files a note without involving the model. `later pop` drains the
+queue and prints it in the shape /later:pop feeds into the conversation.
+
+Usable from a normal terminal. The /later:* slash commands write to the same
+database through the capture hook.
+"""
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+
+import later_db as db  # noqa: E402
+
+
+def _conn(args):
+    project = db.resolve_project(getattr(args, "project", None))
+    return project, db.connect(project)
+
+
+def _rows_json(rows):
+    return json.dumps([dict(row) for row in rows], indent=2)
+
+
+def cmd_add(args):
+    content = " ".join(args.text).strip()
+    if not content:
+        print("nothing to queue: give me some text", file=sys.stderr)
+        return 1
+    _, conn = _conn(args)
+    db.queue(conn, content, session_id=os.environ.get("CLAUDE_CODE_SESSION_ID"),
+             source="cli")
+    total = db.count(conn)
+    print(f"queued ({total} waiting) - {content}")
+    return 0
+
+
+def cmd_pop(args):
+    _, conn = _conn(args)
+    rows, _batch = db.resolve(conn, "popped")
+    if args.json:
+        print(_rows_json(rows))
+        return 0
+    print(db.render_prompt(rows))
+    return 0
+
+
+def cmd_peek(args):
+    _, conn = _conn(args)
+    if args.json:
+        print(_rows_json(db.pending(conn, limit=args.limit)))
+        return 0
+    print(db.render_queue(conn, limit=args.limit))
+    return 0
+
+
+def cmd_count(args):
+    _, conn = _conn(args)
+    print(db.count(conn))
+    return 0
+
+
+def cmd_clear(args):
+    _, conn = _conn(args)
+    rows, _batch = db.resolve(conn, "dropped")
+    if not rows:
+        print("The queue was already empty.")
+        return 0
+    noun = "note" if len(rows) == 1 else "notes"
+    print(f"Dropped {len(rows)} {noun}. `later unpop` puts them back.")
+    return 0
+
+
+def cmd_unpop(args):
+    _, conn = _conn(args)
+    rows, state = db.unpop(conn)
+    if not rows:
+        print("Nothing to restore.")
+        return 0
+    noun = "note" if len(rows) == 1 else "notes"
+    verb = "popped" if state == "popped" else "dropped"
+    print(f"Restored {len(rows)} {verb} {noun}:\n{db.render_notes(rows)}")
+    return 0
+
+
+def cmd_history(args):
+    _, conn = _conn(args)
+    rows = db.history(conn, limit=args.limit)
+    if args.json:
+        print(_rows_json(rows))
+        return 0
+    if not rows:
+        print("Nothing has been popped or dropped yet.")
+        return 0
+    for row in rows:
+        print(f"#{row['id']} {row['state']:<7} batch {row['batch']}  {row['content']}")
+    return 0
+
+
+def cmd_path(args):
+    project = db.resolve_project(getattr(args, "project", None))
+    print(db.db_path(project))
+    return 0
+
+
+def build_parser():
+    p = argparse.ArgumentParser(
+        prog="later", description="A per-project queue of notes waiting for Claude."
+    )
+    p.add_argument(
+        "--project",
+        help="project root to use (default: walk up from cwd for .claude/ or .git/)",
+    )
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    for verb in ("push", "add"):  # `add` reads better in a terminal
+        a = sub.add_parser(verb, help="queue a note without involving the model")
+        a.add_argument("text", nargs="+")
+        a.set_defaults(func=cmd_add)
+
+    po = sub.add_parser("pop", help="drain the queue and print it for the model")
+    po.add_argument("--json", action="store_true")
+    po.set_defaults(func=cmd_pop)
+
+    pe = sub.add_parser("peek", help="show the queue without draining it")
+    pe.add_argument("--limit", type=int, default=db.PEEK_LIMIT,
+                    help=f"notes to show (default {db.PEEK_LIMIT}, 0 for all)")
+    pe.add_argument("--json", action="store_true")
+    pe.set_defaults(func=cmd_peek)
+
+    c = sub.add_parser("count", help="how many notes are waiting")
+    c.set_defaults(func=cmd_count)
+
+    cl = sub.add_parser("clear", help="drop the queue without sending it")
+    cl.set_defaults(func=cmd_clear)
+
+    u = sub.add_parser("unpop", help="put the last popped or dropped batch back")
+    u.set_defaults(func=cmd_unpop)
+
+    h = sub.add_parser("history", help="notes already popped or dropped")
+    h.add_argument("--limit", type=int, default=20)
+    h.add_argument("--json", action="store_true")
+    h.set_defaults(func=cmd_history)
+
+    pa = sub.add_parser("path", help="print the resolved database path")
+    pa.set_defaults(func=cmd_path)
+
+    return p
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

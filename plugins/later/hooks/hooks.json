@@ -1,0 +1,22 @@
+{
+  "description": "Apply /later:push, :peek, :clear and :unpop before they reach the model. /later:pop is excluded on purpose -- it is the one verb meant to reach it.",
+  "hooks": {
+    "UserPromptExpansion": [
+      {
+        "matcher": "^(later:)?(push|peek|clear|unpop)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/later_hook.py",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

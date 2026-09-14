@@ -1,0 +1,61 @@
+# Skills and tools for coding agents
+
+This site distributes skill instructions and their accompanying command-line
+tools without requiring Claude Code or a plugin marketplace client.
+
+## Discover
+
+Fetch {{BASE_URL}}index.json for the complete machine-readable index.
+Its `plugins` array lists names, descriptions, skill paths, binary paths,
+bundle URLs, SHA-256 checksums, and every downloadable file with its URL.
+Paths are relative to the named plugin's directory. An empty skills array
+means the package is a CLI utility rather than a SKILL.md-based skill.
+
+## Download a particular skill and its dependencies
+
+1. Find the entry whose `skills` array contains the SKILL.md you need.
+2. Download its `archive` URL and verify the archive against `sha256` in the index.
+3. Extract the tar.gz into a local tools directory. Each archive has a top-level
+   directory named after the plugin. Keep its layout intact: bin/ tools import
+   modules from the sibling lib/ directory. The archive includes its license.
+4. Read the included README.md and the selected SKILL.md. Register the skill
+   with your agent's skill mechanism, or load its instructions directly.
+5. Run tools by their extracted absolute path, or add that plugin's bin/
+   directory to PATH. The backlog and later tools require Python 3 with SQLite
+   support. `python3 /absolute/path/backlog/bin/backlog --help` and
+   `python3 /absolute/path/later/bin/later --help` describe their CLI interfaces.
+
+Example (from a directory where you want to store tools):
+
+    curl -fL {{BASE_URL}}index.json -o index.json
+    curl -fL {{BASE_URL}}downloads/backlog.tar.gz -o backlog.tar.gz
+    # Compare `shasum -a 256 backlog.tar.gz` to the index entry before extracting.
+    tar -xzf backlog.tar.gz
+    python3 backlog/bin/backlog --help
+
+To fetch individual files instead, use the `files` URLs and preserve their
+relative paths. Download the bin/ and lib/ files as well as the skill; a binary
+alone is insufficient. Plain-english needs only its SKILL.md to be used as
+instructions. Direct HTTP downloads do not preserve executable permissions;
+invoke Python scripts with python3 or set their executable bit yourself.
+
+## Adapting the instructions
+
+These packages originate as Claude Code plugins. Claude slash commands, hook
+registration, allowed-tools metadata, and automatic PATH setup are not portable.
+Do not register Claude hooks in another agent. Invoke the CLI directly instead.
+When a skill references ${CLAUDE_SKILL_DIR}/backlog, substitute the extracted
+backlog/bin/backlog absolute path. Keep the skill inside its complete package
+and register a reference to it if your agent supports that.
+
+Run commands from the intended project directory. The tools store project data
+under .claude/ even when used by another agent. Claude session discovery and
+automatic prompt interception require Claude-specific integration; downloading
+these files does not provide those features in another agent. Read README.md
+for behavior and storage details before using commands that change project data.
+
+The index and bundles describe one deployment, but these stable URLs update on
+future deployments. If checksum verification fails, fetch the index and bundle
+again together. The optional marketplace.json is for Claude Code clients only.
+
+## Available packages

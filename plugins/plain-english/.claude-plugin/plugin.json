@@ -1,0 +1,16 @@
+{
+  "name": "plain-english",
+  "version": "0.1.1",
+  "description": "Write prose in plain, declarative English. Bans the sentence shapes, punctuation, and cadence that make writing read as AI-generated.",
+  "author": {
+    "name": "Tyler Payne",
+    "email": "tylerrfpayne@gmail.com"
+  },
+  "keywords": [
+    "writing",
+    "prose",
+    "style",
+    "documentation",
+    "editing"
+  ]
+}

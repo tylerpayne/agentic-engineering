@@ -10,7 +10,7 @@ items off it.
 
 ```
 /backlog:add upgrade to node 22      # file a note
-/backlog:list                        # print the board
+/backlog:list [page]                 # print the board, 10 at a time
 /backlog:doing 3                     # claim #3 and start
 /backlog:done 3                      # close it, releasing the claim
 ```
@@ -73,7 +73,7 @@ normal terminal:
 
 ```
 backlog add <text...>                 file a new item as todo
-backlog list [--status s1,s2] [--all] [--json] [--limit N]
+backlog list [--status s1,s2] [--all] [--json] [--limit N] [--offset N]
 backlog doing <id> [--steal]          claim it and start work
 backlog todo|done|wontfix <id>        move it, releasing the claim
 backlog claim <id> [--steal] [--no-doing]
@@ -88,6 +88,35 @@ backlog path                          print the resolved db path
 `list` shows open items (`todo`, `doing`) by default. The project root is found
 by walking up from the cwd for `.claude/` or `.git/`, so it works from any
 subdirectory of a repo.
+
+### Paging
+
+Reads are capped at the **10 most recent items**. The board is read into a
+model's context far more often than into a terminal, and an unbounded read of a
+board with months of notes on it is the one thing here that can blow up a context
+window — so the cap is the default rather than an opt-in.
+
+```
+backlog list                     # the 10 most recent open items
+backlog list --offset 10         # the 10 before those
+backlog list --limit 25          # a bigger page
+backlog list --limit 0           # no cap; ask for this deliberately
+/backlog:list 2                  # page 2, from the slash command
+```
+
+`--offset` counts back from the newest item, so paging never reshuffles under a
+note filed mid-read. A truncated listing says what it left out and prints the
+exact command for the next page:
+
+```
+TODO (10 of 84)
+  ...
+10 most recent of 84 - 74 older: backlog list --offset 10
+```
+
+`--json` returns the page inside an envelope carrying `total`, `shown`,
+`offset`, `older`, `has_more`, and `next_offset` alongside `items`, so a reader
+always knows how much of the board it is not looking at.
 
 ## Concurrent sessions
 

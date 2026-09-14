@@ -16,6 +16,28 @@
       "source": "./plugins/backlog",
       "category": "productivity",
       "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/backlog"
+    },
+    {
+      "name": "later",
+      "description": "Park a thought with /later:push without spending a turn, then hand Claude the whole queue at once with /later:pop.",
+      "author": {
+        "name": "Tyler Payne",
+        "email": "tylerrfpayne@gmail.com"
+      },
+      "source": "./plugins/later",
+      "category": "productivity",
+      "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/later"
+    },
+    {
+      "name": "plain-english",
+      "description": "Write prose in plain, declarative English. Bans the sentence shapes, punctuation, and cadence that make writing read as AI-generated.",
+      "author": {
+        "name": "Tyler Payne",
+        "email": "tylerrfpayne@gmail.com"
+      },
+      "source": "./plugins/plain-english",
+      "category": "productivity",
+      "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/plain-english"
     }
   ]
 }

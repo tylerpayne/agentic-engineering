@@ -1,0 +1,10 @@
+{
+  "name": "later",
+  "version": "0.1.0",
+  "description": "Park a thought with /later:push without spending a turn, then hand Claude the whole queue at once with /later:pop.",
+  "author": {
+    "name": "Tyler Payne",
+    "email": "tylerrfpayne@gmail.com"
+  },
+  "keywords": ["queue", "prompt", "sqlite", "productivity"]
+}

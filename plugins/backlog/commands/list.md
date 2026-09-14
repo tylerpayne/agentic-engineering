@@ -1,6 +1,6 @@
 ---
-description: Show this project's backlog board
-argument-hint: "(no arguments)"
+description: Show this project's backlog board (10 most recent open items)
+argument-hint: "[page]"
 disable-model-invocation: true
 ---
 

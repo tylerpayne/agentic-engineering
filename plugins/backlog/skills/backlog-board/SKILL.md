@@ -20,7 +20,7 @@ install modes arrange, but prefer the explicit path: it cannot be shadowed and
 it does not depend on how the shell was started.
 
 ```
-backlog list [--status todo,doing] [--all] [--json] [--limit N]
+backlog list [--status todo,doing] [--all] [--json] [--limit N] [--offset N]
 backlog add <text...>
 backlog doing <id> [--steal]     claim it and start work
 backlog todo|done|wontfix <id>   move it, releasing the claim
@@ -37,6 +37,37 @@ backlog path
 include closed ones. Use `--json` whenever you need to filter, count, or
 cross-reference — it returns the full rows, including `created_at` and the
 `session_id` that filed each item.
+
+## Paging — read this before dumping the board
+
+**`list` returns only the 10 most recent items.** A board that has been collected
+into for months can hold hundreds of notes, and reading all of them costs context
+you will want for the actual work. The default is deliberately small; widen it on
+purpose, not by reflex.
+
+- `--offset N` skips the N most recent items, so `--offset 10` is the next page
+  back. Every truncated listing prints the exact next-page command; use it rather
+  than composing your own.
+- `--limit N` resizes the page. `--limit 0` removes the cap entirely — only reach
+  for it when you have already seen `total` and know it is small, or the user
+  explicitly asked for the whole board.
+- Narrowing beats paging. `--status doing` or `--status todo` is almost always a
+  better way to find something than walking pages of everything.
+
+`--json` wraps the page in an envelope that tells you what you are not seeing:
+
+```json
+{"items": [ ... ], "total": 84, "shown": 10, "offset": 0,
+ "limit": 10, "newer": 0, "older": 74, "has_more": true, "next_offset": 10}
+```
+
+Read `items` for the rows and `total` for the real size of the board. When
+`has_more` is true, **say so** — "10 of 84 open items" — rather than presenting a
+page as if it were the whole backlog. Do not page through the entire board to
+answer a question one query could answer.
+
+In plain output the same thing appears as a column header reading `TODO (10 of
+84)` and a footer line naming the next page.
 
 **Never read `backlog.db` directly** with sqlite3, Read, or anything else. Go
 through the CLI so schema changes cannot break you.
@@ -58,7 +89,7 @@ same job. `backlog doing <id>` takes the claim; moving the item to `todo`,
 `done`, or `wontfix` releases it. Status and ownership are the same concept —
 you cannot be working an item without holding it.
 
-Every row from `backlog list --json` carries a `claim` block:
+Every row in `items` from `backlog list --json` carries a `claim` block:
 
 ```json
 "claim": {"state": "live", "session": "02c9ef7c-...",
@@ -78,7 +109,8 @@ session files:
 
 ## Working an item
 
-1. `backlog list` and show the user what is open.
+1. `backlog list` and show the user what is open. If `has_more` is set, tell
+   them how many items you did not show.
 2. **Confirm which item** before starting. Notes are terse and were written in a
    hurry; if #4 says "fix the config thing", ask what it meant rather than
    picking an interpretation and running with it.
@@ -142,7 +174,8 @@ holder replied that they are done. It is never a way around a timeout.
 
 If the board is empty, say so plainly. Do not invent plausible-sounding backlog
 items, and do not pad a short list with suggestions of your own — the user is
-asking what *they* wrote down. If you want to propose extra work, say clearly
+asking what *they* wrote down. Equally, never present one page as the whole
+board: "nothing else is on there" is a claim about `total`, not about `shown`. If you want to propose extra work, say clearly
 that it is your suggestion and not from the backlog.
 
 If `.claude/backlog-fallback.txt` exists, the capture hook hit a database error

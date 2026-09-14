@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Tyler Payne's Claude Code plugins. Capture thoughts, manage your backlog, and write in plain English.">
+  <title>Agent skills &amp; tools · Tyler Payne</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #202c25; background: #f5f4ee; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1080px; margin: auto; padding: 48px 24px; }
+    nav, footer { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+    nav { font-size: 14px; }
+    a { color: #286044; text-underline-offset: 4px; }
+    a:focus-visible { outline: 3px solid #286044; outline-offset: 5px; }
+    header { max-width: 760px; padding: 80px 0 40px; }
+    .eyebrow { text-transform: uppercase; font-size: 12px; font-weight: 650; letter-spacing: .16em; color: #52665a; }
+    h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.06; letter-spacing: -.055em; margin: 20px 0; font-weight: 600; }
+    header p { font-size: 19px; line-height: 1.6; color: #526056; max-width: 590px; }
+    .install { padding: 24px; background: #e5eade; border: 1px solid #cbd5c4; border-radius: 12px; margin-bottom: 44px; }
+    h2 { font-size: 22px; letter-spacing: -.02em; margin: 0; }
+    p { line-height: 1.65; }
+    pre { background: #fffefa; padding: 16px; border: 1px solid #dedfd5; border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 18px; }
+    article { padding: 24px; border: 1px solid #d8dcd1; border-radius: 12px; background: #fffefa; display: flex; flex-direction: column; }
+    article p { color: #526056; flex-grow: 1; }
+    article pre { background: #f5f4ee; margin-bottom: 24px; }
+    article a { font-size: 14px; }
+    footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid #d8dcd1; font-size: 13px; color: #526056; }
+    @media (max-width: 600px) { main { padding: 28px 18px; } header { padding-top: 50px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <nav aria-label="Main"><span>Tyler Payne / Plugins</span><a href="{{REPOSITORY_URL}}">View on GitHub ↗</a></nav>
+    <header>
+      <div class="eyebrow">Skills &amp; tools for coding agents</div>
+      <h1>Keep your thoughts.<br>Keep your flow.</h1>
+      <p>Small plugins for the way you work. Park a thought, keep a backlog, and make every sentence clearer.</p>
+    </header>
+    <section class="install" aria-labelledby="install-title">
+      <h2 id="install-title">Give your agent the guide</h2>
+      <p>Download a bundle with the skill and its supporting tools, or let your agent choose from the index. No marketplace client required.</p>
+      <p><a href="llms.txt">Agent guide · llms.txt</a> &nbsp; <a href="index.json">File index · JSON</a></p>
+      <p>Keep each bundle’s directory layout intact. Python tools need their accompanying libraries. Claude-specific hooks require separate integration.</p>
+    </section>
+    <section class="grid" aria-label="Available plugins">{{CARDS}}</section>
+    <footer><span>Open-source skills &amp; tools.</span><a href="marketplace.json">Claude marketplace JSON</a><a href="{{REPOSITORY_URL}}/blob/main/LICENSE">MIT license</a></footer>
+  </main>
+</body>
+</html>
