@@ -3,15 +3,21 @@
 import logging
 
 
-def configure_logging(verbose: int = 0, quiet: bool = False) -> None:
+def configure_logging(loglevel: str = "INFO") -> None:
     """Configure stderr diagnostics at the application's entry point.
 
     Parameters
     ----------
-    verbose : int
-        Verbosity count; one or more enables debug logging.
-    quiet : bool
-        Suppress informational messages while preserving errors and warnings.
+    loglevel : str
+        Minimum severity: DEBUG, INFO, WARNING, or ERROR.
+
+    Raises
+    ------
+    ValueError
+        If the supplied severity is unsupported.
     """
-    level = logging.WARNING if quiet else logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(level=level, format="%(levelname)s: %(message)s", force=True)
+    if loglevel not in ("DEBUG", "INFO", "WARNING", "ERROR"):
+        raise ValueError(
+            f"Unsupported loglevel {loglevel!r}; expected DEBUG, INFO, WARNING, or ERROR"
+        )
+    logging.basicConfig(level=loglevel, format="%(levelname)s: %(message)s", force=True)

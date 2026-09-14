@@ -232,10 +232,11 @@ Always set up Python's standard-library **`logging`** at application entry
 points. Use `logging.getLogger(__name__)` for module loggers. Libraries must not
 reconfigure their caller's root logger on import.
 
-**Every available CLI must support verbosity switching**, for example
-`-v/--verbose` and `-q/--quiet`. Use DEBUG for diagnostic detail, INFO for ordinary
-progress, and WARNING/ERROR for problems. Quiet mode may suppress informational
-messages but must preserve errors. Send diagnostics to stderr. The bootstrap's
+**Every available CLI must support `--loglevel DEBUG|INFO|WARNING|ERROR`**,
+defaulting to `INFO`. Prefer this explicit severity selector over verbose/quiet
+flags. Use DEBUG for diagnostic detail, INFO for ordinary progress, WARNING for
+warnings and errors, and ERROR for errors only. Reject unsupported levels with
+an informative error. Send diagnostics to stderr. The bootstrap's
 `_logging.py` helper supplies this setup; call it from the application's entry
 point and connect its arguments to the CLI flags.
 
@@ -301,7 +302,7 @@ uv run poe check
 uv run poe test
 uv run pre-commit install
 /path/to/python/bin/python-style verify .
-/path/to/python/bin/python-style verify . --run --json --verbose
+/path/to/python/bin/python-style verify . --run --json --loglevel DEBUG
 ```
 
 Bootstrap creates a single-package uv project with a src layout. It refuses
@@ -314,7 +315,7 @@ configuration intentionally rather than replacing it wholesale.
 and returns nonzero for findings. `--run` additionally runs the target project's
 `uv run poe check` and `uv run poe test`; use it when running that project's code
 is within the task's scope. `--json` emits a structured stdout report.
-`--verbose` and `--quiet` control logging to stderr.
+`--loglevel DEBUG|INFO|WARNING|ERROR` controls logging to stderr (default INFO).
 
 The verifier accepts the scaffold's task shape and reports unsupported task
 shapes rather than claiming they passed. Run it per package for workspaces.

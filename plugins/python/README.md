@@ -21,7 +21,7 @@ uv run poe test
 uv run pre-commit install
 /path/to/python/bin/python-style verify . --json
 /path/to/python/bin/python-style verify . --run
-/path/to/python/bin/python-style verify . --verbose
+/path/to/python/bin/python-style verify . --loglevel DEBUG
 ```
 
 Bootstrap creates a src-layout package, Hatchling build configuration, uv Python
@@ -44,12 +44,12 @@ JSON reports are Pydantic wire models; diagnostics from task subprocesses go to
 stderr. AST checks are heuristics, not proof: review record semantics, private
 names, serialization boundaries, docstrings, and module responsibilities too.
 
-The CLI configures standard-library logging to stderr. Use `-v/--verbose` for
-debug logging and `-q/--quiet` to suppress informational messages, before or
-after the subcommand. `--json` is the stdout interface for other processes;
+The CLI configures standard-library logging to stderr. Use `--loglevel DEBUG|INFO|WARNING|ERROR`
+before or after the subcommand; the default is INFO. DEBUG includes diagnostic
+detail, WARNING suppresses informational messages, and ERROR emits errors only. `--json` is the stdout interface for other processes;
 normal progress and findings use logging. Scaffolds include `_logging.py` with
 `configure_logging`; call it from your application entry point and expose
-verbosity options in any CLI you add. Do not configure root logging on library
+`--loglevel` in any CLI you add. Do not configure root logging on library
 import.
 
 The skill also covers dynamic attribute access, intentionally consumed

@@ -30,8 +30,7 @@ class CommandOptions(BaseModel):
     name: str = ""
     run: bool = False
     json_output: bool = False
-    verbose: int = 0
-    quiet: bool = False
+    loglevel: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
 
 class Finding(BaseModel):

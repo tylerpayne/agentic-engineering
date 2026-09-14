@@ -24,9 +24,9 @@ def main() -> int:
         Zero on success, one for findings, two for invalid input.
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    verbosity = parser.add_mutually_exclusive_group()
-    verbosity.add_argument("-v", "--verbose", action="count", default=0)
-    verbosity.add_argument("-q", "--quiet", action="store_true")
+    parser.add_argument(
+        "--loglevel", choices=("DEBUG", "INFO", "WARNING", "ERROR"), default="INFO"
+    )
     subcommands = parser.add_subparsers(dest="command", required=True)
     create = subcommands.add_parser(
         "bootstrap", help="Create a Python 3.12 package without overwrites"
@@ -44,15 +44,13 @@ def main() -> int:
     )
     inspect.add_argument("--json", action="store_true", dest="json_output")
     for command_parser in (create, inspect):
-        verbosity = command_parser.add_mutually_exclusive_group()
-        verbosity.add_argument(
-            "-v", "--verbose", action="count", default=argparse.SUPPRESS
-        )
-        verbosity.add_argument(
-            "-q", "--quiet", action="store_true", default=argparse.SUPPRESS
+        command_parser.add_argument(
+            "--loglevel",
+            choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+            default=argparse.SUPPRESS,
         )
     args = CommandOptions.model_validate(vars(parser.parse_args()))
-    configure_logging(args.verbose, args.quiet)
+    configure_logging(args.loglevel)
     _LOGGER.debug("Running %s for project %s", args.command, args.path)
     try:
         if args.command == "bootstrap":

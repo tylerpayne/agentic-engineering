@@ -86,16 +86,16 @@ def test_configuration_does_not_leak_input(tmp_path: Path) -> None:
     assert "tool.poe.tasks.check" in report.model_dump_json()
 
 
-@pytest.mark.parametrize("verbosity", ["--verbose", "--quiet"])
-def test_json_stdout_and_verbosity(tmp_path: Path, verbosity: str) -> None:
+@pytest.mark.parametrize("loglevel", ["DEBUG", "INFO", "WARNING", "ERROR"])
+def test_json_stdout_and_loglevel(tmp_path: Path, loglevel: str) -> None:
     """Machine output remains valid JSON at different logging levels.
 
     Parameters
     ----------
     tmp_path : Path
         Temporary project directory.
-    verbosity : str
-        Logging flag.
+    loglevel : str
+        Minimum logging severity.
     """
     bootstrap(tmp_path, "sample")
     result = subprocess.run(
@@ -106,7 +106,8 @@ def test_json_stdout_and_verbosity(tmp_path: Path, verbosity: str) -> None:
             "verify",
             str(tmp_path),
             "--json",
-            verbosity,
+            "--loglevel",
+            loglevel,
         ],
         capture_output=True,
         text=True,
@@ -114,11 +115,11 @@ def test_json_stdout_and_verbosity(tmp_path: Path, verbosity: str) -> None:
     )
     assert result.returncode == 0
     assert not Report.model_validate_json(result.stdout).findings
-    assert ("DEBUG" in result.stderr) == (verbosity == "--verbose")
+    assert ("DEBUG" in result.stderr) == (loglevel == "DEBUG")
 
 
 def test_cli_failure_is_loud_and_has_context(tmp_path: Path) -> None:
-    """Even quiet mode retains the invalid value and a failing exit code.
+    """Even ERROR level retains the invalid value and a failing exit code.
 
     Parameters
     ----------
@@ -130,7 +131,8 @@ def test_cli_failure_is_loud_and_has_context(tmp_path: Path) -> None:
             sys.executable,
             "-c",
             "from python_style.cli import main; raise SystemExit(main())",
-            "--quiet",
+            "--loglevel",
+            "ERROR",
             "bootstrap",
             str(tmp_path),
             "--name",
@@ -144,3 +146,26 @@ def test_cli_failure_is_loud_and_has_context(tmp_path: Path) -> None:
     assert not result.stdout
     assert "bad-name!" in result.stderr
     assert "ERROR" in result.stderr
+
+
+def test_invalid_loglevel_is_rejected() -> None:
+    """An unsupported level fails with the supplied value and valid choices."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from python_style.cli import main; raise SystemExit(main())",
+            "verify",
+            "--loglevel",
+            "TRACE",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert not result.stdout
+    assert "TRACE" in result.stderr
+    assert all(
+        level in result.stderr for level in ("DEBUG", "INFO", "WARNING", "ERROR")
+    )
