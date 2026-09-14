@@ -38,6 +38,16 @@
       "source": "./plugins/plain-english",
       "category": "productivity",
       "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/plain-english"
+    },
+    {
+      "name": "python",
+      "description": "Preferred Python conventions with bootstrap and verification tools.",
+      "author": {
+        "name": "Tyler Payne"
+      },
+      "source": "./plugins/python",
+      "category": "development",
+      "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/python"
     }
   ]
 }

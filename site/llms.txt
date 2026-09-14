@@ -32,6 +32,9 @@ user; it does not need to download or operate later.
 5. Run tools by their extracted absolute path, or add that plugin's bin/
    directory to PATH. Backlog requires Python 3 with SQLite support.
    `python3 /absolute/path/backlog/bin/backlog --help` describes its CLI.
+   The python plugin's python-style launcher requires uv and uses a locked
+   Python 3.12 environment. Keep its pyproject.toml, uv.lock, .python-version,
+   bin/, and lib/ together. First use may download Python and dependencies.
 
 Example (from a directory where you want to store tools):
 

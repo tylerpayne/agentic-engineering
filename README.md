@@ -7,6 +7,7 @@ My Claude Code plugins.
 | [backlog](plugins/backlog) | `/backlog:add <note>` files a thought into a per-project SQLite kanban board **without invoking the model** — no turn, no tokens, no derailing what Claude is doing. A companion skill reads and works the board, and coordinates across concurrent sessions. |
 | [later](plugins/later) | `/later:push <note>` parks a thought **without invoking the model**, and `/later:pop` hands Claude everything parked as one message. Use it when a thought arrives mid-task and you do not want to redirect what Claude is doing. |
 | [plain-english](plugins/plain-english) | A skill that constrains how Claude writes prose. It bans the sentence shapes, punctuation, and cadence that make text read as machine-generated, and it applies to every kind of writing. |
+| [python](plugins/python) | Python conventions with `python-style bootstrap` and `python-style verify`: uv, Hatchling, Poe, Ruff, ty, pytest, and typed records. |
 
 ## Install
 
@@ -15,6 +16,7 @@ claude plugin marketplace add tylerpayne/claude-code-plugins
 claude plugin install backlog@tylerpayne
 claude plugin install plain-english@tylerpayne
 claude plugin install later@tylerpayne
+claude plugin install python@tylerpayne
 ```
 
 Update everything later with `claude plugin marketplace update tylerpayne`.
@@ -44,7 +46,7 @@ metadata. Set `agent.download` to true when the agent itself uses the skill or
 tool, and explain the decision in `agent.reason`. These fields appear in the
 JSON index, page, and agent guide. They are our convention, not marketplace
 schema fields. Every new plugin needs an explicit entry; the build fails if one
-is missing. Backlog and plain-english are agent downloads. Later is user-facing
+is missing. Backlog, plain-english, and python are agent downloads. Later is user-facing
 Claude Code integration, so agents should skip it. Its existing archive URL
 remains available, but the page and guide do not promote it as an agent download.
 

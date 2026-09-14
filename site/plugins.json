@@ -19,5 +19,12 @@
       "download": true,
       "reason": "The agent reads and applies the plain-english skill. No binaries are required."
     }
+  },
+  "python": {
+    "description": "Python conventions and a CLI for project bootstrap and verification.",
+    "agent": {
+      "download": true,
+      "reason": "The agent applies the Python skill and uses python-style to scaffold and verify projects. Requires uv."
+    }
   }
 }

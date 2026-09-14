@@ -7,3 +7,7 @@ backlog-fallback.txt
 later-fallback.txt
 settings.json.backlog-bak
 _site/
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/

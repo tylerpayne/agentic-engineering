@@ -39,7 +39,9 @@ def build(output, repository, ref):
                 relative = file.relative_to(path)
                 if not file.is_file() or file.is_symlink() or '__pycache__' in relative.parts:
                     continue
-                if relative.parts[0] not in {'skills', 'bin', 'lib', 'commands', 'hooks', 'README.md'}:
+                if relative.parts[0] not in {'skills', 'bin', 'lib', 'commands', 'hooks', 'README.md',
+                                             'pyproject.toml', 'uv.lock', '.python-version',
+                                             '.pre-commit-config.yaml', 'tests'}:
                     continue
                 if file.suffix in {'.pyc', '.db'} or not file.resolve().is_relative_to(path):
                     continue

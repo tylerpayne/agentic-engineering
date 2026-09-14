@@ -18,6 +18,12 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+      - name: Check Python plugin
+        working-directory: plugins/python
+        run: |
+          uv run --locked poe check
+          uv run --locked poe test
       - name: Build plugin catalog
         run: python scripts/build_site.py --repository "$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
       - name: Verify downloadable bundles
