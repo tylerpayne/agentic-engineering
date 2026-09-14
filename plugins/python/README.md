@@ -21,6 +21,7 @@ uv run poe test
 uv run pre-commit install
 /path/to/python/bin/python-style verify . --json
 /path/to/python/bin/python-style verify . --run
+/path/to/python/bin/python-style verify . --verbose
 ```
 
 Bootstrap creates a src-layout package, Hatchling build configuration, uv Python
@@ -42,6 +43,21 @@ when static checks pass. It may create environments and execute project code.
 JSON reports are Pydantic wire models; diagnostics from task subprocesses go to
 stderr. AST checks are heuristics, not proof: review record semantics, private
 names, serialization boundaries, docstrings, and module responsibilities too.
+
+The CLI configures standard-library logging to stderr. Use `-v/--verbose` for
+debug logging and `-q/--quiet` to suppress informational messages, before or
+after the subcommand. `--json` is the stdout interface for other processes;
+normal progress and findings use logging. Scaffolds include `_logging.py` with
+`configure_logging`; call it from your application entry point and expose
+verbosity options in any CLI you add. Do not configure root logging on library
+import.
+
+The skill also covers dynamic attribute access, intentionally consumed
+exceptions, forgiving dict lookups, stdout contracts, and informative failures
+without leaking secrets. Static review findings use the rules `dynamic-attrs`,
+`caught-error`, `forgiving-get`, and `print`. Document a justified exception with
+`# python-style: allow[rule] explanation` next to the statement. These are review
+conventions, not blanket bans; the checker cannot establish ownership or intent.
 
 Develop this plugin from this directory:
 

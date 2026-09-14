@@ -1,14 +1,18 @@
 """Bootstrap and verification command-line interface."""
 
 import argparse
+import logging
 import subprocess
 import sys
 from pathlib import Path
 
+from python_style._logging import configure_logging
 from python_style._report import add
 from python_style.bootstrap import bootstrap
 from python_style.types import CommandOptions
 from python_style.verify import verify
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def main() -> int:
@@ -20,6 +24,9 @@ def main() -> int:
         Zero on success, one for findings, two for invalid input.
     """
     parser = argparse.ArgumentParser(description=__doc__)
+    verbosity = parser.add_mutually_exclusive_group()
+    verbosity.add_argument("-v", "--verbose", action="count", default=0)
+    verbosity.add_argument("-q", "--quiet", action="store_true")
     subcommands = parser.add_subparsers(dest="command", required=True)
     create = subcommands.add_parser(
         "bootstrap", help="Create a Python 3.12 package without overwrites"
@@ -36,13 +43,24 @@ def main() -> int:
         help="Also execute project-defined poe check and test tasks",
     )
     inspect.add_argument("--json", action="store_true", dest="json_output")
+    for command_parser in (create, inspect):
+        verbosity = command_parser.add_mutually_exclusive_group()
+        verbosity.add_argument(
+            "-v", "--verbose", action="count", default=argparse.SUPPRESS
+        )
+        verbosity.add_argument(
+            "-q", "--quiet", action="store_true", default=argparse.SUPPRESS
+        )
     args = CommandOptions.model_validate(vars(parser.parse_args()))
+    configure_logging(args.verbose, args.quiet)
+    _LOGGER.debug("Running %s for project %s", args.command, args.path)
     try:
         if args.command == "bootstrap":
             for path in bootstrap(args.path, args.name):
-                print(path)
-            print(
-                f"Next: cd {args.path} && uv sync && uv run poe check && uv run poe test"
+                _LOGGER.info("Created %s", path)
+            _LOGGER.info(
+                "Next: cd %s && uv sync && uv run poe check && uv run poe test",
+                args.path,
             )
             return 0
         report = verify(args.path)
@@ -62,17 +80,23 @@ def main() -> int:
                         f"poe {task} exited with {result.returncode}",
                     )
         if args.json_output:
+            # python-style: allow[print] JSON is the stdout API consumed by other processes.
             print(report.model_dump_json(indent=2))
         else:
             for finding in report.findings:
-                print(
-                    f"{finding.path}:{finding.line or 0}: {finding.rule}: {finding.message}"
+                _LOGGER.error(
+                    "%s:%s: %s: %s",
+                    finding.path,
+                    finding.line or 0,
+                    finding.rule,
+                    finding.message,
                 )
             if not report.findings:
-                print(
+                _LOGGER.info(
                     "Checked conventions passed. Review semantic record usage and module boundaries manually."
                 )
         return 1 if report.findings else 0
     except (OSError, ValueError) as error:
-        print(str(error), file=sys.stderr)
+        # python-style: allow[caught-error] Convert CLI failure into a diagnostic and exit status 2.
+        _LOGGER.error("%s failed for project %s: %s", args.command, args.path, error)
         return 2

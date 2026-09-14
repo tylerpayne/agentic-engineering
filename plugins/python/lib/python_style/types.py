@@ -15,6 +15,13 @@ class GeneratedFile:
     content: str
 
 
+@dataclass(frozen=True)
+class TaskReferenceError(ValueError):
+    """A missing or cyclic task reference."""
+
+    task: str
+
+
 class CommandOptions(BaseModel):
     """Validated command-line input."""
 
@@ -23,6 +30,8 @@ class CommandOptions(BaseModel):
     name: str = ""
     run: bool = False
     json_output: bool = False
+    verbose: int = 0
+    quiet: bool = False
 
 
 class Finding(BaseModel):
@@ -32,6 +41,13 @@ class Finding(BaseModel):
     rule: str
     message: str
     line: int | None = None
+
+
+class ValidationDetail(BaseModel):
+    """Safe fields from an external Pydantic validation error."""
+
+    loc: tuple[str | int, ...]
+    type: str
 
 
 class Report(BaseModel):

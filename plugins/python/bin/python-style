@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Launch the packaged CLI with its locked uv environment."""
 
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ def main() -> int:
     int
         Command exit status.
     """
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     root = Path(__file__).resolve().parents[1]
     try:
         return subprocess.call(
@@ -28,7 +30,10 @@ def main() -> int:
             ]
         )
     except FileNotFoundError:
-        print("python-style requires uv on PATH.", file=sys.stderr)
+        # python-style: allow[caught-error] Report the missing executable and return a CLI failure status.
+        logging.error(
+            "Cannot launch python-style: executable uv was not found on PATH."
+        )
         return 2
 
 

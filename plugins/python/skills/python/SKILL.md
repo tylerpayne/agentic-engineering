@@ -42,6 +42,51 @@ Use underscore prefixes for private record attributes; Pydantic private state
 uses `PrivateAttr` and is not a wire field. Keep wire fields public if they must
 serialize.
 
+## Errors, logging, and deliberate exceptions
+
+- Treat `getattr` and `setattr` as code smells. Use direct, typed attribute access
+  for objects we own. Dynamic access is permitted only for an object we do not
+  own when safe attribute access is necessary. Add a code comment explaining
+  ownership, why direct access is unsuitable, and the intended fallback.
+- Treat catching an exception without reraising as a code smell. Recovery,
+  aggregating validation failures, and mapping errors to CLI exit statuses can
+  be deliberate choices; add a code comment explaining why the exception is
+  consumed and how the failure remains visible. Avoid bare `except`, silent
+  `pass`, and success-shaped fallback values that hide failure. When translating
+  exceptions, preserve the cause with `raise ... from error`.
+- Logging is mandatory. Use the standard library `logging` module. Configure it
+  at application entry points, and use `logging.getLogger(__name__)` in modules.
+  Libraries must not reconfigure their caller's root logger on import. Every CLI
+  must expose verbosity controls (for example `-v/--verbose` and `-q/--quiet`).
+  Send diagnostics to stderr and preserve errors when quiet mode is selected.
+- Treat `print` as a code smell. It is appropriate when stdout is the intended
+  output contract, such as JSON, generated content, or data for another process.
+  Use logging for progress, status, debugging, and errors. Keep machine-readable
+  stdout free of diagnostics.
+- Treat dict `.get()`, `.get(..., None)`, `.setdefault()`, and other forgiving
+  lookups as code smells. Use them only when missing data is expected and the
+  fallback has deliberate meaning. Required fields should fail when missing.
+  This does not relax the dataclass/BaseModel record rule.
+- Prefer loud failures with informative messages: identify the operation, the
+  expected condition, and the particular offending values when safe. Never dump
+  passwords, tokens, raw secret-bearing records, or parser/validation errors that
+  embed them. Redact or omit sensitive values while retaining safe field names,
+  locations, and error categories.
+
+The verifier flags recognizable examples as review findings, not unconditional
+bans. For justified exceptions, place a comment directly before or on the flagged
+statement (or immediately inside an except handler):
+
+```python
+# python-style: allow[print] Emit the JSON protocol consumed by the calling process.
+print(report.model_dump_json())
+```
+
+Supported rationale tags are `dynamic-attrs`, `caught-error`, `print`, and
+`forgiving-get`. A tag needs an actual explanation. It is a review aid, not proof
+that a use is justified. Attribute ownership, lookup receiver types, exception
+control flow, logging coverage, and privacy still require semantic review.
+
 ## Modules and documentation
 
 Prefer splitting files longer than 300 lines into focused submodules. Private

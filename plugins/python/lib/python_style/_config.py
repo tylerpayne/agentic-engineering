@@ -9,8 +9,8 @@ from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from pydantic import ValidationError
 
-from python_style._report import add
-from python_style.types import PreCommit, Pyproject, Report
+from python_style._report import add, configuration_error
+from python_style.types import PreCommit, Pyproject, Report, TaskReferenceError
 
 
 def _commands(
@@ -38,7 +38,7 @@ def _commands(
         If a task is missing or cyclic.
     """
     if name in seen or name not in tasks:
-        raise ValueError(f"Missing or cyclic task: {name}")
+        raise TaskReferenceError(name)
     value = tasks[name]
     if isinstance(value, str):
         return [value]
@@ -132,7 +132,8 @@ def check_config(root: Path, report: Report) -> None:
         ):
             add(report, path, "ruff", "Enable ANN and D rules with NumPy docstrings.")
     except (OSError, ValueError, ValidationError) as error:
-        add(report, path, "configuration", str(error))
+        # python-style: allow[caught-error] Aggregate configuration failures into a nonzero verification report.
+        add(report, path, "configuration", configuration_error(error))
     pin = root / ".python-version"
     if not pin.is_file() or pin.read_text().strip() != "3.12":
         add(report, pin, "python", "Pin the preferred interpreter to 3.12.")
@@ -155,4 +156,5 @@ def check_config(root: Path, report: Report) -> None:
                 "Use a local uv run poe check hook with pass_filenames=false and always_run=true.",
             )
     except (OSError, ValueError, yaml.YAMLError) as error:
-        add(report, path, "pre-commit", str(error))
+        # python-style: allow[caught-error] Report invalid hook configuration without exposing parser input.
+        add(report, path, "pre-commit", configuration_error(error))

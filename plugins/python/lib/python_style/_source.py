@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 
 from python_style._report import add
+from python_style._smells import check_smells
 from python_style.types import Report
 
 _SKIP = frozenset(
@@ -33,8 +34,12 @@ def check_source(root: Path, report: Report) -> None:
             source = path.read_text()
             tree = ast.parse(source)
         except (OSError, SyntaxError, UnicodeError) as error:
-            add(report, path, "syntax", str(error))
+            # python-style: allow[caught-error] Report unreadable source and continue checking other files.
+            add(
+                report, path, "syntax", f"Cannot inspect {path}: {type(error).__name__}"
+            )
             continue
+        check_smells(tree, source, path, report)
         if len(source.splitlines()) > 300:
             add(
                 report,

@@ -30,11 +30,15 @@ def bootstrap(destination: Path, name: str) -> list[Path]:
     module = name.replace("-", "_")
     if not re.fullmatch(r"[a-z][a-z0-9_-]*", name) or keyword.iskeyword(module):
         raise ValueError(
-            "Use a lowercase Python package name, optionally with hyphens."
+            f"Invalid package name {name!r}: use a lowercase Python identifier, optionally with hyphens."
         )
     templates = Path(__file__).parent / "templates"
     config = (templates / "pyproject.toml.txt").read_text()
     files = [
+        GeneratedFile(
+            Path(f"src/{module}/_logging.py"),
+            (templates / "logging.py.txt").read_text(),
+        ),
         GeneratedFile(
             Path("pyproject.toml"),
             config.replace("@NAME@", name).replace("@MODULE@", module),
