@@ -152,7 +152,7 @@ def check_config(root: Path, report: Report) -> None:
         hooks = PreCommit.model_validate(yaml.safe_load(path.read_text()))
         if not any(
             repo.repo == "local"
-            and hook.entry == ".venv/bin/python -m poethepoet check"
+            and hook.entry == "uv run --locked poe check"
             and hook.language == "system"
             and not hook.pass_filenames
             and hook.always_run
@@ -163,7 +163,7 @@ def check_config(root: Path, report: Report) -> None:
                 report,
                 path,
                 "pre-commit",
-                "Use a local .venv/bin/python -m poethepoet check hook with pass_filenames=false and always_run=true.",
+                "Use a local uv run --locked poe check hook with pass_filenames=false and always_run=true.",
             )
     except (OSError, ValueError, yaml.YAMLError) as error:
         # python-style: allow[caught-error] Report invalid hook configuration without exposing parser input.

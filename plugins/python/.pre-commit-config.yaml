@@ -3,7 +3,8 @@ repos:
     hooks:
       - id: check
         name: poe check
-        entry: .venv/bin/python -m poethepoet check
+        # Intentional uv run: fail if uv.lock is stale; syncing the environment is allowed here.
+        entry: uv run --locked poe check
         language: system
         pass_filenames: false
         always_run: true

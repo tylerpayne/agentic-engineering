@@ -71,3 +71,7 @@ uv sync --locked
 .venv/bin/python -m poethepoet test
 uv build
 ```
+
+Pre-commit intentionally uses `uv run --locked poe check` to reject a stale
+lockfile. This exception may sync the environment; regular CLI and task
+execution still uses the prepared virtualenv directly.

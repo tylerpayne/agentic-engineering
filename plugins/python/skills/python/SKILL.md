@@ -81,7 +81,11 @@ that requirement and align its runtime, metadata, and tool configuration.
 
 ### 7. pre-commit runs poe check
 
-Configure a local **pre-commit hook running `.venv/bin/python -m poethepoet check`**. It must check
+Configure a local **pre-commit hook running `uv run --locked poe check`**.
+This is an intentional exception to direct virtualenv execution: pre-commit
+must verify that `uv.lock` is current. `--locked` fails if the lockfile is stale
+and permits environment syncing; do not add `--no-sync` or replace it with
+`--frozen` here. It must check
 the project instead of appending the staged filenames to the Poe command:
 
 ```yaml
@@ -90,7 +94,8 @@ repos:
     hooks:
       - id: check
         name: poe check
-        entry: .venv/bin/python -m poethepoet check
+        # Intentional uv run: validate lock freshness; environment syncing is allowed.
+        entry: uv run --locked poe check
         language: system
         pass_filenames: false
         always_run: true
@@ -298,8 +303,9 @@ python -m pytest
 Use `uv sync` without `--locked` when intentionally creating or updating the
 lockfile. Set Poe’s executor to `virtualenv` at `.venv`, as in the task example above,
 so task execution cannot implicitly select a uv-based executor. Do not silently
-sync dependencies as a side effect of a CLI, hook, or
-test invocation. A missing environment should fail with setup instructions.
+sync dependencies as a side effect of routine CLI or test invocation.
+The pre-commit hook in rule 7 is an explicit exception: it intentionally uses
+`uv run --locked poe check` to validate lock freshness and may sync. A missing environment should fail with setup instructions.
 
 `uv run` is allowed only as a deliberate, explained exception. Choose its flags
 according to the intended behavior:
