@@ -41,14 +41,20 @@ The web version serves agents that do not support Claude marketplaces:
   libraries, documentation, and license with the directory layout preserved.
 - `plugins/<plugin>/...` serves individual files at direct URLs.
 
-`site/plugins.json` supplies factual web descriptions and our custom `agent`
-metadata. Set `agent.download` to true when the agent itself uses the skill or
-tool, and explain the decision in `agent.reason`. These fields appear in the
-JSON index, page, and agent guide. They are our convention, not marketplace
-schema fields. Every new plugin needs an explicit entry; the build fails if one
-is missing. Backlog, plain-english, and python are agent downloads. Later is user-facing
-Claude Code integration, so agents should skip it. Its existing archive URL
-remains available, but the page and guide do not promote it as an agent download.
+`site/plugins.json` supplies factual descriptions and custom invocation metadata:
+
+- `agent_invoked`: the agent applies the skill or invokes its actions.
+- `user_invoked`: the user directly operates its commands or actions.
+- `invocation_notes`: explains the intended workflow.
+
+The flags are independent. Backlog is both; later is user-invoked only; python
+and plain-english are agent-invoked only. A user activating a skill does not count
+as invoking its actions. These describe intended usage, not access permissions.
+All bundles remain downloadable; agents should select `agent_invoked: true`.
+
+These fields appear in `index.json` (schema version 2), the page, and the agent
+guide. They are our convention, not marketplace schema fields. Every new plugin
+needs an explicit entry; the build fails if one is missing.
 
 The Python CLIs work independently; Claude-specific hooks and session integration
 are not automatically available to other agents. The generated guide explains

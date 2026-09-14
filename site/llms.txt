@@ -11,18 +11,23 @@ bundle URLs, SHA-256 checksums, and every downloadable file with its URL.
 Paths are relative to the named plugin's directory. An empty skills array
 means the package is a CLI utility rather than a SKILL.md-based skill.
 
-Each entry has custom `agent` metadata (this site's convention, not a standard):
-- `agent.download`: boolean. Only select entries with true for agent installation.
-- `agent.reason`: explains whether and how an agent uses this plugin.
+Index schema version 2 uses these custom fields (this site's convention):
+- `agent_invoked`: boolean. The agent applies the skill or invokes its actions.
+- `user_invoked`: boolean. The user directly operates its commands or actions.
+- `invocation_notes`: explanation of the intended workflow.
 
-Entries marked false remain in the index for completeness and existing download
-links, but are not agent installation candidates. In particular, later is a
-user-facing Claude Code plugin. The agent receives the notes submitted by the
-user; it does not need to download or operate later.
+The flags are independent: backlog is both; later is user-invoked only;
+python and plain-english are agent-invoked only. A user requesting or activating
+an agent skill does not count as invoking its actions. These flags describe the
+intended workflow, not permissions or technical restrictions on who can run code.
+
+For your own use as an agent, select entries with `agent_invoked: true`. Later
+remains in the index for users; agents receive the submitted notes and do not
+need to download or operate the plugin itself. All bundles remain available.
 
 ## Download a particular skill and its dependencies
 
-1. Select an entry with `agent.download: true` whose `skills` array contains the SKILL.md you need.
+1. Select an entry with `agent_invoked: true` whose `skills` array contains the SKILL.md you need.
 2. Download its `archive` URL and verify the archive against `sha256` in the index.
 3. Extract the tar.gz into a local tools directory. Each archive has a top-level
    directory named after the plugin. Keep its layout intact: bin/ tools import

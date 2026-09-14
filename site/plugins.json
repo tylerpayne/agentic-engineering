@@ -1,30 +1,26 @@
 {
   "backlog": {
     "description": "Read and update a project's SQLite kanban board.",
-    "agent": {
-      "download": true,
-      "reason": "The agent uses the backlog-board skill and backlog CLI to read, claim, and update work items."
-    }
+    "agent_invoked": true,
+    "user_invoked": true,
+    "invocation_notes": "Users capture notes through commands or the CLI; agents use the backlog-board skill and CLI to read, claim, and update work items."
   },
   "later": {
     "description": "Claude Code commands for users to park notes and submit them later.",
-    "agent": {
-      "download": false,
-      "reason": "User-facing Claude Code integration. The agent receives submitted notes; it does not use the plugin itself."
-    }
+    "agent_invoked": false,
+    "user_invoked": true,
+    "invocation_notes": "User-facing Claude Code integration. The agent receives submitted notes; it does not use the plugin itself."
   },
   "plain-english": {
     "description": "Writing instructions for plain, declarative English.",
-    "agent": {
-      "download": true,
-      "reason": "The agent reads and applies the plain-english skill. No binaries are required."
-    }
+    "agent_invoked": true,
+    "user_invoked": false,
+    "invocation_notes": "The agent reads and applies the plain-english skill. No binaries are required."
   },
   "python": {
     "description": "Python conventions and a CLI for project bootstrap and verification.",
-    "agent": {
-      "download": true,
-      "reason": "The agent applies the Python skill and uses python-style to scaffold and verify projects. Requires uv."
-    }
+    "agent_invoked": true,
+    "user_invoked": false,
+    "invocation_notes": "The agent applies the Python skill and uses python-style to bootstrap and verify projects. A user activating the skill does not make its actions user-invoked."
   }
 }

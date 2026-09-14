@@ -20,12 +20,13 @@ def build(output, repository, ref):
     url = f'https://{owner}.github.io/' + ('' if repo.lower() == f'{owner}.github.io'.lower() else f'{repo}/')
     output.mkdir(parents=True, exist_ok=True)
     (output / 'downloads').mkdir(exist_ok=True)
-    index = {'schema_version': 1, 'revision': ref, 'plugins': []}
+    index = {'schema_version': 2, 'revision': ref, 'plugins': []}
     for plugin in marketplace['plugins']:
         details = metadata[plugin['name']]
-        agent = details['agent']
-        if type(agent['download']) is not bool or not agent['reason'].strip():
-            raise ValueError(f'Invalid agent metadata: {plugin["name"]}')
+        if (type(details['agent_invoked']) is not bool
+                or type(details['user_invoked']) is not bool
+                or not details['invocation_notes'].strip()):
+            raise ValueError(f'Invalid invocation metadata: {plugin["name"]}')
         source = plugin['source']
         if isinstance(source, str):
             path = (ROOT / source).resolve()
@@ -61,7 +62,9 @@ def build(output, repository, ref):
                     bundle.add(output / 'plugins' / plugin['name'] / entry['path'],
                                arcname=f'{plugin["name"]}/{entry["path"]}')
             index['plugins'].append({'name': plugin['name'], 'description': details['description'],
-                                     'agent': agent,
+                                     'agent_invoked': details['agent_invoked'],
+                                     'user_invoked': details['user_invoked'],
+                                     'invocation_notes': details['invocation_notes'],
                                      'archive': url + archive.relative_to(output).as_posix(),
                                      'sha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
                                      'skills': [f['path'] for f in files if f['path'].endswith('/SKILL.md')],
@@ -75,10 +78,14 @@ def build(output, repository, ref):
             }
         name = html.escape(plugin['name'])
         link = html.escape(plugin.get('homepage', f'https://github.com/{repository}'), quote=True)
-        download = f'<a href="downloads/{name}.tar.gz">Download</a> · ' if agent['download'] else ''
-        audience = 'Agent download' if agent['download'] else 'Claude Code · user-facing'
+        download = f'<a href="downloads/{name}.tar.gz">Download</a> · '
+        audience = 'Invoked by: ' + ', '.join(
+            label for flag, label in (('agent_invoked', 'Agent'), ('user_invoked', 'User'))
+            if details[flag])
+        if not (details['agent_invoked'] or details['user_invoked']):
+            audience = 'No direct invocation'
         cards.append(f'<article><h2>{name}</h2><p>{html.escape(details["description"])}</p>'
-                     f'<p class="audience">{audience}</p><p>{html.escape(agent["reason"])}</p>'
+                     f'<p class="audience">{audience}</p><p>{html.escape(details["invocation_notes"])}</p>'
                      f'<p>{download}<a href="{link}">Documentation</a></p></article>')
     template = (ROOT / 'site/index.html').read_text()
     page = template.replace('{{CARDS}}', '\n'.join(cards)).replace('{{MARKETPLACE_URL}}', html.escape(url + 'marketplace.json'))
@@ -94,8 +101,8 @@ def build(output, repository, ref):
     guide = (ROOT / 'site/llms.txt').read_text().replace('{{BASE_URL}}', url)
     for entry in index['plugins']:
         guide += f'\n## {entry["name"]}\n\n{entry["description"]}\n'
-        guide += f'Agent download: {str(entry["agent"]["download"]).lower()}\n{entry["agent"]["reason"]}\n'
-        if not entry['agent']['download']:
+        guide += f'agent_invoked: {str(entry["agent_invoked"]).lower()}\nuser_invoked: {str(entry["user_invoked"]).lower()}\n{entry["invocation_notes"]}\n'
+        if not entry['agent_invoked']:
             continue
         guide += f'Bundle: {entry["archive"]}\n'
         guide += 'Skills: ' + (', '.join(entry['skills']) or 'None; CLI utility with README and command documentation.') + '\n'

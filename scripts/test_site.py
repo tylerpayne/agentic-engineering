@@ -20,12 +20,15 @@ class SiteTest(unittest.TestCase):
             index = json.loads((output / 'index.json').read_text())
             self.assertEqual(index['revision'], 'test-revision')
             plugins = {p['name']: p for p in index['plugins']}
-            self.assertFalse(plugins['later']['agent']['download'])
-            self.assertTrue(plugins['backlog']['agent']['download'])
-            self.assertTrue(plugins['plain-english']['agent']['download'])
+            self.assertEqual(index['schema_version'], 2)
+            expected = {'backlog': (True, True), 'later': (False, True),
+                        'python': (True, False), 'plain-english': (True, False)}
+            for name, flags in expected.items():
+                self.assertEqual((plugins[name]['agent_invoked'], plugins[name]['user_invoked']), flags)
+                self.assertNotIn('agent', plugins[name])
             page = (output / 'index.html').read_text()
-            self.assertNotIn('href="downloads/later.tar.gz"', page)
-            self.assertIn('href="downloads/backlog.tar.gz"', page)
+            self.assertIn('href="downloads/later.tar.gz"', page)
+            self.assertIn('Invoked by: Agent, User', page)
             self.assertNotIn('downloads/later.tar.gz', (output / 'llms.txt').read_text())
             manifest = json.loads((ROOT / '.claude-plugin/marketplace.json').read_text())
             self.assertEqual({p['name'] for p in index['plugins']},
