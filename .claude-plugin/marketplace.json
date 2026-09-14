@@ -1,6 +1,6 @@
 {
   "name": "tylerpayne",
-  "description": "Tyler Payne's Claude Code plugins",
+  "description": "Agentic Engineering: Tyler Payne's skills and plugins",
   "owner": {
     "name": "Tyler Payne",
     "email": "tylerrfpayne@gmail.com"
@@ -15,7 +15,7 @@
       },
       "source": "./plugins/backlog",
       "category": "productivity",
-      "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/backlog"
+      "homepage": "https://github.com/tylerpayne/agentic-engineering/tree/main/plugins/backlog"
     },
     {
       "name": "later",
@@ -26,7 +26,7 @@
       },
       "source": "./plugins/later",
       "category": "productivity",
-      "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/later"
+      "homepage": "https://github.com/tylerpayne/agentic-engineering/tree/main/plugins/later"
     },
     {
       "name": "plain-english",
@@ -37,7 +37,7 @@
       },
       "source": "./plugins/plain-english",
       "category": "productivity",
-      "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/plain-english"
+      "homepage": "https://github.com/tylerpayne/agentic-engineering/tree/main/plugins/plain-english"
     },
     {
       "name": "python",
@@ -47,7 +47,7 @@
       },
       "source": "./plugins/python",
       "category": "development",
-      "homepage": "https://github.com/tylerpayne/claude-code-plugins/tree/main/plugins/python"
+      "homepage": "https://github.com/tylerpayne/agentic-engineering/tree/main/plugins/python"
     }
   ]
 }

@@ -1,4 +1,4 @@
-# Skills and tools for coding agents
+# Agentic Engineering
 
 This site distributes skill instructions and their accompanying command-line
 tools without requiring Claude Code or a plugin marketplace client.

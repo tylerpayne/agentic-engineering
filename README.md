@@ -1,6 +1,6 @@
-# claude-code-plugins
+# agentic-engineering
 
-My Claude Code plugins.
+Skills, command-line tools, and Claude Code plugins for agentic engineering.
 
 | Plugin | What it does |
 |---|---|
@@ -12,7 +12,7 @@ My Claude Code plugins.
 ## Install
 
 ```bash
-claude plugin marketplace add tylerpayne/claude-code-plugins
+claude plugin marketplace add tylerpayne/agentic-engineering
 claude plugin install backlog@tylerpayne
 claude plugin install plain-english@tylerpayne
 claude plugin install later@tylerpayne
@@ -27,7 +27,7 @@ Plugin commands are namespaced by Claude Code, so they read as `/backlog:add`,
 ## GitHub Pages
 
 The static catalog is configured to publish at
-[tylerpayne.github.io/claude-code-plugins](https://tylerpayne.github.io/claude-code-plugins/).
+[tylerpayne.github.io/agentic-engineering](https://tylerpayne.github.io/agentic-engineering/).
 To enable publishing, open the repository's **Settings → Pages** and select
 **GitHub Actions** as the build source, then push this setup to `main`.
 The **GitHub Pages** workflow also supports manual runs and builds pull requests
@@ -57,7 +57,7 @@ how to substitute local binary paths for Claude-specific skill variables.
 Claude Code users can also add the hosted catalog:
 
 ```bash
-claude plugin marketplace add https://tylerpayne.github.io/claude-code-plugins/marketplace.json
+claude plugin marketplace add https://tylerpayne.github.io/agentic-engineering/marketplace.json
 ```
 
 The build reads `.claude-plugin/marketplace.json` and generates the page and a

@@ -15,8 +15,8 @@ class SiteTest(unittest.TestCase):
     def test_downloads(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / 'site'
-            build(output, 'tylerpayne/claude-code-plugins', 'test-revision')
-            base = 'https://tylerpayne.github.io/claude-code-plugins/'
+            build(output, 'tylerpayne/agentic-engineering', 'test-revision')
+            base = 'https://tylerpayne.github.io/agentic-engineering/'
             index = json.loads((output / 'index.json').read_text())
             self.assertEqual(index['revision'], 'test-revision')
             plugins = {p['name']: p for p in index['plugins']}

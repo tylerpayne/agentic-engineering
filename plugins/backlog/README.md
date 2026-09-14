@@ -46,7 +46,7 @@ The same event is used by the official `claude-security` plugin, which matches
 ## Install
 
 ```bash
-claude plugin marketplace add tylerpayne/claude-code-plugins
+claude plugin marketplace add tylerpayne/agentic-engineering
 claude plugin install backlog@tylerpayne
 ```
 
@@ -61,7 +61,7 @@ as a normal terminal command.
 For iterating on the plugin itself:
 
 ```bash
-claude --plugin-dir /path/to/claude-code-plugins/plugins/backlog
+claude --plugin-dir /path/to/agentic-engineering/plugins/backlog
 ```
 
 Requires `python3` (standard library only -- no dependencies).

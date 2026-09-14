@@ -110,7 +110,7 @@ def build(output, repository, ref):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=ROOT / '_site')
-    parser.add_argument('--repository', default='tylerpayne/claude-code-plugins')
+    parser.add_argument('--repository', default='tylerpayne/agentic-engineering')
     parser.add_argument('--ref', default='main')
     args = parser.parse_args()
     build(args.output, args.repository, args.ref)

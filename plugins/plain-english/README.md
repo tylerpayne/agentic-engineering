@@ -7,7 +7,7 @@ to every kind of writing rather than to a particular document type.
 ## Install
 
 ```bash
-claude plugin marketplace add tylerpayne/claude-code-plugins
+claude plugin marketplace add tylerpayne/agentic-engineering
 claude plugin install plain-english@tylerpayne
 ```
 
