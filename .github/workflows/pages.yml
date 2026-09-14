@@ -22,8 +22,9 @@ jobs:
       - name: Check Python plugin
         working-directory: plugins/python
         run: |
-          uv run --locked poe check
-          uv run --locked poe test
+          uv sync --locked
+          .venv/bin/python -m poethepoet check
+          .venv/bin/python -m poethepoet test
       - name: Build plugin catalog
         run: python scripts/build_site.py --repository "$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
       - name: Verify downloadable bundles

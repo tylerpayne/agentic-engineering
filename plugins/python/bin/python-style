@@ -1,38 +1,36 @@
 #!/usr/bin/env python3
-"""Launch the packaged CLI with its locked uv environment."""
+"""Launch the CLI directly from its explicitly prepared virtual environment."""
 
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 
 def main() -> int:
-    """Run the packaged command.
+    """Run the packaged command without syncing dependencies.
 
     Returns
     -------
     int
-        Command exit status.
+        Command exit status, or two when its environment is unavailable.
     """
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     root = Path(__file__).resolve().parents[1]
+    executable = (
+        root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    )
     try:
         return subprocess.call(
-            [
-                "uv",
-                "run",
-                "--locked",
-                "--project",
-                str(root),
-                "python-style",
-                *sys.argv[1:],
-            ]
+            [str(executable), "-m", "python_style.cli", *sys.argv[1:]]
         )
     except FileNotFoundError:
-        # python-style: allow[caught-error] Report the missing executable and return a CLI failure status.
+        # python-style: allow[caught-error] Explain the missing environment and return a CLI failure status.
         logging.error(
-            "Cannot launch python-style: executable uv was not found on PATH."
+            "Cannot launch python-style: interpreter %s is missing. Run uv sync --locked --project %s explicitly first.",
+            executable,
+            root,
         )
         return 2
 

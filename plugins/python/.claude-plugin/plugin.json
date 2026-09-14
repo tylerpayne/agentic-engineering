@@ -1,6 +1,6 @@
 {
   "name": "python",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Preferred Python conventions with project bootstrap and verification tools.",
   "author": {"name": "Tyler Payne"}
 }

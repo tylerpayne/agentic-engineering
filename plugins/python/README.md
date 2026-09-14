@@ -1,7 +1,7 @@
 # python
 
 Python conventions as a skill, with a `python-style` bootstrap and verification
-CLI. Requires uv; the launcher uses Python 3.12 and the included lockfile.
+CLI. Prepare its Python 3.12 environment explicitly with uv and the included lockfile.
 
 ```sh
 claude plugin install python@tylerpayne
@@ -9,16 +9,17 @@ claude plugin install python@tylerpayne
 
 Other agents can download the bundle from the site and read
 `skills/python/SKILL.md`. Keep the bundle intact. `bin/python-style` invokes the
-packaged CLI without requiring Claude Code or changing the calling directory.
-First use may download Python and dependencies with uv.
+packaged CLI from its own .venv without requiring Claude Code, changing the
+calling directory, or syncing dependencies. First run
+`uv sync --locked --project /path/to/python` to prepare that environment.
 
 ```sh
 /path/to/python/bin/python-style bootstrap ./example --name example
 cd example
 uv sync
-uv run poe check
-uv run poe test
-uv run pre-commit install
+.venv/bin/python -m poethepoet check
+.venv/bin/python -m poethepoet test
+.venv/bin/python -m pre_commit install
 /path/to/python/bin/python-style verify . --json
 /path/to/python/bin/python-style verify . --run
 /path/to/python/bin/python-style verify . --loglevel DEBUG
@@ -39,7 +40,8 @@ profile; a project deliberately requiring a newer interpreter needs review.
 
 Static verification is read-only and exits 1 for findings, 2 for invalid CLI
 input or bootstrap failures. `--run` runs the target's check and test tasks only
-when static checks pass. It may create environments and execute project code.
+when static checks pass. It executes project code using the target’s existing .venv; it never creates or
+syncs environments. Prepare the target with an explicit uv sync first.
 JSON reports are Pydantic wire models; diagnostics from task subprocesses go to
 stderr. AST checks are heuristics, not proof: review record semantics, private
 names, serialization boundaries, docstrings, and module responsibilities too.
@@ -63,9 +65,9 @@ Develop this plugin from this directory:
 
 ```sh
 uv sync --locked
-uv run poe format
-uv run poe check
-uv run poe fix
-uv run poe test
+.venv/bin/python -m poethepoet format
+.venv/bin/python -m poethepoet check
+.venv/bin/python -m poethepoet fix
+.venv/bin/python -m poethepoet test
 uv build
 ```

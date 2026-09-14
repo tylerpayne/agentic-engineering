@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -57,15 +58,24 @@ def main() -> int:
             for path in bootstrap(args.path, args.name):
                 _LOGGER.info("Created %s", path)
             _LOGGER.info(
-                "Next: cd %s && uv sync && uv run poe check && uv run poe test",
+                "Next: cd %s && uv sync && .venv/bin/python -m poethepoet check && .venv/bin/python -m poethepoet test",
                 args.path,
             )
             return 0
         report = verify(args.path)
         if args.run and not report.findings:
+            interpreter = (
+                args.path.resolve()
+                / ".venv"
+                / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            )
+            if not interpreter.is_file():
+                raise ValueError(
+                    f"Project interpreter {interpreter} is missing; run uv sync explicitly in {args.path} first."
+                )
             for task in ("check", "test"):
                 result = subprocess.run(
-                    ["uv", "run", "poe", task],
+                    [str(interpreter), "-m", "poethepoet", task],
                     cwd=args.path,
                     stdout=sys.stderr,
                     check=False,
@@ -98,3 +108,7 @@ def main() -> int:
         # python-style: allow[caught-error] Convert CLI failure into a diagnostic and exit status 2.
         _LOGGER.error("%s failed for project %s: %s", args.command, args.path, error)
         return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

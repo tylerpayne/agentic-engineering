@@ -70,10 +70,18 @@ class BuildSystem(BaseModel):
     requires: list[str]
 
 
+class Executor(BaseModel):
+    """Explicit environment selection for task execution."""
+
+    type: str
+    location: str
+
+
 class Poe(BaseModel):
     """Task names are dynamic; commands use Poe strings and reference sequences."""
 
     tasks: dict[str, str | list[str]]
+    executor: Executor
 
 
 class Pydocstyle(BaseModel):

@@ -42,6 +42,9 @@ class SiteTest(unittest.TestCase):
                     published = output / file['url'].removeprefix(base)
                     self.assertEqual(hashlib.sha256(published.read_bytes()).hexdigest(), file['sha256'])
                     self.assertEqual(published.read_bytes(), (extracted / plugin['name'] / file['path']).read_bytes())
+                if (extracted / plugin['name'] / 'pyproject.toml').exists():
+                    subprocess.run(['uv', 'sync', '--locked', '--project', str(extracted / plugin['name'])],
+                                   check=True, capture_output=True, cwd=temp)
                 for binary in plugin['binaries']:
                     subprocess.run([sys.executable, str(extracted / plugin['name'] / binary), '--help'],
                                    check=True, capture_output=True, cwd=temp)

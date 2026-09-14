@@ -15,7 +15,8 @@ using the companion CLI does not replace reading or applying these rules.
 Use **uv as the workspace and package manager**, including interpreter selection,
 virtual environments, dependency management, and locking. Use `uv add` for runtime
 dependencies, `uv add --dev` for development tools, `uv sync` to synchronize the
-environment, and `uv run` to execute project commands. Commit `uv.lock`.
+environment. Commit `uv.lock`. Execute project commands from the activated
+virtualenv or invoke its Python/executables directly, as specified in rule 22.
 
 For multiple packages, declare `[tool.uv.workspace].members` at the workspace
 root and share its lockfile. Manage workspace dependencies from that root. Do not
@@ -39,6 +40,10 @@ Scoped tasks use **`parent:child`** names, such as `check:types` or `test:unit`.
 `check` must not modify source files. A baseline task configuration is:
 
 ```toml
+[tool.poe.executor]
+type = "virtualenv"
+location = ".venv"
+
 [tool.poe.tasks]
 format = "ruff format ."
 "check:lint" = "ruff check ."
@@ -50,7 +55,8 @@ fix = ["fix:lint", "format"]
 test = "pytest"
 ```
 
-Run tasks with `uv run poe <task>`. Add scoped tasks when needed while retaining
+Run tasks with `poe <task>` after activating the virtualenv, or with
+`.venv/bin/python -m poethepoet <task>` directly. Add scoped tasks when needed while retaining
 these four top-level task names.
 
 ### 4. Ruff formats and lints
@@ -75,7 +81,7 @@ that requirement and align its runtime, metadata, and tool configuration.
 
 ### 7. pre-commit runs poe check
 
-Configure a local **pre-commit hook running `uv run poe check`**. It must check
+Configure a local **pre-commit hook running `.venv/bin/python -m poethepoet check`**. It must check
 the project instead of appending the staged filenames to the Poe command:
 
 ```yaml
@@ -84,17 +90,17 @@ repos:
     hooks:
       - id: check
         name: poe check
-        entry: uv run poe check
+        entry: .venv/bin/python -m poethepoet check
         language: system
         pass_filenames: false
         always_run: true
 ```
 
-Install the hook with `uv run pre-commit install` in a Git checkout.
+Install the hook with `.venv/bin/python -m pre_commit install` in a Git checkout.
 
 ### 8. pytest runs tests
 
-Use **pytest** and expose it through `uv run poe test`. Test behavior, meaningful
+Use **pytest** and expose it through `.venv/bin/python -m poethepoet test`. Test behavior, meaningful
 failure paths, and serialization boundaries where relevant. Keep tests typed;
 test functions and fixtures need argument and return annotations too.
 
@@ -270,6 +276,47 @@ can embed their input: omit or redact sensitive values while retaining safe
 field names, file locations, error categories, and other useful context. CLI
 failures must return a nonzero exit status.
 
+### 22. Execute from the virtualenv; avoid uv run
+
+**Prefer never to use `uv run` for routine execution.** Activate the environment
+with `source .venv/bin/activate`, then invoke `python`, `poe`, or other installed
+tools, or directly invoke `.venv/bin/python` and its modules. On Windows, use
+`.venv/Scripts/python.exe` and the appropriate activation script. uv remains the
+workspace/package manager; environment setup and synchronization are explicit
+operations, separate from running code.
+
+```sh
+uv sync --locked  # Explicit setup when an up-to-date uv.lock exists.
+source .venv/bin/activate
+poe check
+python -m pytest
+# Alternatively, without activation:
+.venv/bin/python -m poethepoet check
+.venv/bin/python -m pytest
+```
+
+Use `uv sync` without `--locked` when intentionally creating or updating the
+lockfile. Set Poe’s executor to `virtualenv` at `.venv`, as in the task example above,
+so task execution cannot implicitly select a uv-based executor. Do not silently
+sync dependencies as a side effect of a CLI, hook, or
+test invocation. A missing environment should fail with setup instructions.
+
+`uv run` is allowed only as a deliberate, explained exception. Choose its flags
+according to the intended behavior:
+
+- **`--no-sync` skips environment synchronization** and implies `--frozen`.
+  Use `uv run --no-sync ...` when an intentional uv wrapper must run against
+  the already prepared environment without changing it.
+- **`--locked` prevents lockfile changes** and fails if the lockfile is stale.
+  It does **not** prevent environment synchronization.
+- **`--frozen` uses the existing lockfile without checking freshness or updating
+  it**. It does **not** prevent environment synchronization either.
+
+Document why an exception needs `uv run`; ordinarily use `--no-sync` when no
+sync is intended. If synchronization is intentionally required, choose
+`--locked` or `--frozen` explicitly and explain the choice. See the
+[uv locking and syncing documentation](https://docs.astral.sh/uv/concepts/projects/sync/).
+
 ## Using the verifier's rationale comments
 
 The verifier flags recognizable smells for review; it cannot prove ownership,
@@ -290,7 +337,9 @@ code acceptable. Apply the rules above even if the verifier does not flag a use.
 
 The companion executable is `../../bin/python-style` relative to this skill
 folder. Resolve it to an absolute path before changing directories. It requires
-uv; uv installs its Python 3.12 environment and locked dependencies on first use.
+a prepared Python 3.12 virtualenv. Run `uv sync --locked --project /path/to/python`
+explicitly after downloading or updating the plugin. The launcher invokes that
+virtualenv’s Python directly and never syncs it.
 Keep `bin/`, `lib/`, `pyproject.toml`, `.python-version`, and `uv.lock` together
 when downloading. A Claude marketplace client is not required.
 
@@ -298,9 +347,9 @@ when downloading. A Claude marketplace client is not required.
 /path/to/python/bin/python-style bootstrap ./my-project --name my-project
 cd my-project
 uv sync
-uv run poe check
-uv run poe test
-uv run pre-commit install
+.venv/bin/python -m poethepoet check
+.venv/bin/python -m poethepoet test
+.venv/bin/python -m pre_commit install
 /path/to/python/bin/python-style verify .
 /path/to/python/bin/python-style verify . --run --json --loglevel DEBUG
 ```
@@ -313,12 +362,12 @@ configuration intentionally rather than replacing it wholesale.
 
 `verify` checks configuration and AST conventions without executing project code
 and returns nonzero for findings. `--run` additionally runs the target project's
-`uv run poe check` and `uv run poe test`; use it when running that project's code
+`.venv/bin/python -m poethepoet check` and `.venv/bin/python -m poethepoet test`; use it when running that project's code
 is within the task's scope. `--json` emits a structured stdout report.
 `--loglevel DEBUG|INFO|WARNING|ERROR` controls logging to stderr (default INFO).
 
 The verifier accepts the scaffold's task shape and reports unsupported task
 shapes rather than claiming they passed. Run it per package for workspaces.
 Passing checks is partial evidence, not complete compliance: manually review all
-21 rules, especially record semantics, module responsibility, private names,
+22 rules, especially record semantics, module responsibility, private names,
 dynamic attribute ownership, deliberate recovery, logging coverage, and privacy.

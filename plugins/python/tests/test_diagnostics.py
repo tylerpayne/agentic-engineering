@@ -169,3 +169,46 @@ def test_invalid_loglevel_is_rejected() -> None:
     assert all(
         level in result.stderr for level in ("DEBUG", "INFO", "WARNING", "ERROR")
     )
+
+
+def test_run_requires_existing_environment(tmp_path: Path) -> None:
+    """Verification must not create or sync a missing target environment.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Temporary project directory.
+    """
+    bootstrap(tmp_path, "sample")
+    result = subprocess.run(
+        [sys.executable, "-m", "python_style.cli", "verify", str(tmp_path), "--run"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "uv sync explicitly" in result.stderr
+    assert not (tmp_path / ".venv").exists()
+
+
+def test_launcher_requires_explicit_setup(tmp_path: Path) -> None:
+    """The downloaded launcher fails with instructions rather than syncing.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Temporary plugin directory.
+    """
+    launcher = tmp_path / "bin/python-style"
+    launcher.parent.mkdir()
+    original = Path(__file__).resolve().parents[1] / "bin/python-style"
+    launcher.write_text(original.read_text())
+    result = subprocess.run(
+        [sys.executable, str(launcher), "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "uv sync --locked --project" in result.stderr
+    assert not (tmp_path / ".venv").exists()

@@ -14,6 +14,10 @@ packages = ["src/@MODULE@"]
 [dependency-groups]
 dev = ["poethepoet>=0.32", "pre-commit>=4", "pytest>=8", "ruff>=0.11", "ty>=0.0.1"]
 
+[tool.poe.executor]
+type = "virtualenv"
+location = ".venv"
+
 [tool.poe.tasks]
 format = "ruff format ."
 "check:lint" = "ruff check ."
